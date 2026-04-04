@@ -20,7 +20,7 @@ A standalone Morse code practice device built on the **Waveshare ESP32-S3-Touch-
 - **Board:** ESP32S3 Dev Module
 - **Flash Size:** 16 MB
 - **PSRAM:** OPI PSRAM
-- **Partition Scheme:** Huge APP (3 MB)
+- **Partition Scheme:** custom
 - **USB CDC On Boot:** Enabled
 
 ### Required Libraries
