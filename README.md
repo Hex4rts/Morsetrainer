@@ -221,13 +221,4 @@ Core 1 (main loop)              Core 0 (DriverTask @ 33ms)
 | Game scores | SD /scores/*.txt | After each game |
 | LEARN progress | SD /trainer2.txt | On level-up / exit |
 
-## Version History
-
-- **v0.9** - Progress bar shows LEARN mode stats, combined menu display
-- **v0.8** - Pool < 3 auto-introduction, no recall until 3 letters learned
-- **v0.7** - Drill threshold tuning
-- **v0.6** - Score_Submit for Morse Trace + QSO, all 4 scores on OPS tab
-- **v0.5** - Fixed score display, showRefBars() for LEARN + Beginner
-- **v0.4** - Per-appearance 3-try recall, LEARN mode startPlayback fix
-- **v0.3** - LEARN mode, MT_Version.h, version in CFG tab
-- **v0.2** - Falling Letters full alphabet, kill lowest duplicate, no timer beginner
+73 VE2HXR
