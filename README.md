@@ -11,7 +11,7 @@ A standalone Morse code practice device built on the **Waveshare ESP32-S3-Touch-
 - **4 practice games** with difficulty levels and persistent high scores
 - **LEARN mode** — guided letter-by-letter Morse trainer with drill/recall cycle
 - **OTA updates** from SD card — drop `firmware.bin` on SD and reboot
-- **Dark military theme** UI — black background, green/amber/red accents
+- **Dark theme** UI — black background, green/amber/red accents
 
 ## Hardware
 
