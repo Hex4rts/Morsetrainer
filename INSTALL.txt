@@ -1,0 +1,56 @@
+============================================================
+  MorseTrainer v0.3 — INSTALL INSTRUCTIONS
+============================================================
+
+1. INSTALL LIBRARIES (Arduino IDE → Sketch → Include Library → Manage Libraries):
+   - Search "lvgl" → install version 9.x
+   - Search "Adafruit NeoPixel" → install latest
+
+2. COPY lv_conf.h TO YOUR ARDUINO LIBRARIES FOLDER:
+   - The file "lv_conf.h" from this zip must go HERE:
+     C:\Users\<YOUR_USERNAME>\Documents\Arduino\libraries\lv_conf.h
+   - It must be NEXT TO the lvgl folder, NOT inside it!
+   
+   Correct layout:
+     Arduino\libraries\lvgl\        ← installed by Library Manager
+     Arduino\libraries\lv_conf.h    ← copy this file here
+
+3. COPY ALL OTHER FILES to your sketch folder:
+   - Create folder: Documents\Arduino\MorseTrainer\
+   - Copy everything EXCEPT lv_conf.h into that folder
+   - The .ino file and all .h/.cpp files must be in the same folder
+   - partitions.csv MUST be in the sketch folder too
+
+4. OPEN MorseTrainer.ino in Arduino IDE
+
+5. BOARD SETTINGS (Tools menu):
+   - Board: ESP32S3 Dev Module
+   - Flash Size: 16 MB (128Mb)
+   - Flash Mode: QIO 80MHz
+   - PSRAM: OPI PSRAM
+   - Partition Scheme: Custom   ← IMPORTANT! Not "Huge APP"
+   - USB CDC On Boot: Enabled
+   - Upload Mode: UART0 / Hardware CDC
+   - CPU Frequency: 240MHz
+
+   NOTE: "Custom" partition scheme uses partitions.csv from
+   the sketch folder. This gives 2x 3MB app slots for OTA updates.
+
+6. COMPILE AND UPLOAD (first time via USB cable)
+
+============================================================
+  OTA UPDATE VIA SD CARD (after first USB flash)
+============================================================
+
+1. In Arduino IDE: Sketch → Export Compiled Binary
+2. Find MorseTrainer_ino.bin in the build folder
+3. Copy to SD card root, rename to: firmware.bin
+4. Insert SD card into device, power on
+5. Device auto-detects /firmware.bin on boot
+6. Flashes the update (serial monitor shows progress)
+7. Renames to /firmware.done to prevent re-flash
+8. Reboots into new firmware
+
+NOTE: OTA only works with the custom partition table
+(partitions.csv). If you used "Huge APP (3MB No OTA)"
+the device has no second app partition to write to.
