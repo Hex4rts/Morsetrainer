@@ -2,6 +2,8 @@
 
 A standalone Morse code practice device built on the **Waveshare ESP32-S3-Touch-LCD-2.8**.
 
+3D case https://www.thingiverse.com/thing:7329182
+
 ## Features
 
 - **Iambic A/B keyer** with WPM-driven timing
