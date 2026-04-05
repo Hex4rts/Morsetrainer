@@ -1,5 +1,5 @@
 ============================================================
-  MorseTrainer v0.3 — INSTALL INSTRUCTIONS
+  MorseTrainer v0.9 — INSTALL INSTRUCTIONS
 ============================================================
 
 1. INSTALL LIBRARIES (Arduino IDE → Sketch → Include Library → Manage Libraries):

@@ -28,9 +28,15 @@ static void Lvgl_Touchpad_Read(lv_indev_t *indev, lv_indev_data_t *data)
   uint8_t touchpad_pressed = Touch_Get_XY(touchpad_x, touchpad_y, strength, &touchpad_cnt, CST328_LCD_TOUCH_MAX_POINTS);
   if (touchpad_pressed && touchpad_cnt > 0) {
     // Touch reports portrait (240×320), remap to landscape (320×240)
-    // MADCTL=0x60 rotation: landscape_x = touch_y, landscape_y = 239 - touch_x
-    data->point.x = touchpad_y[0];
-    data->point.y = (LCD_WIDTH - 1) - touchpad_x[0];
+    if (display_flipped) {
+      // MADCTL=0xA0: flipped 180°
+      data->point.x = (LCD_HEIGHT - 1) - touchpad_y[0];
+      data->point.y = touchpad_x[0];
+    } else {
+      // MADCTL=0x60: normal landscape
+      data->point.x = touchpad_y[0];
+      data->point.y = (LCD_WIDTH - 1) - touchpad_x[0];
+    }
     data->state = LV_INDEV_STATE_PRESSED;
   } else {
     data->state = LV_INDEV_STATE_RELEASED;

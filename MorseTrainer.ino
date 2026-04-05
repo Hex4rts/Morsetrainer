@@ -5,6 +5,7 @@
 #include "MT_Version.h"
 
 #include <driver/gpio.h>
+#include <Preferences.h>
 #include "Display_ST7789.h"
 #include "I2C_Driver.h"
 #include "LVGL_Driver.h"
@@ -66,6 +67,26 @@ void setup() {
   // Phase 2: Display
   LCD_Init();
   Lvgl_Init();
+
+  // Apply screen flip early (before splash) from NVS
+  // Safety: both paddles held at boot = force flip OFF
+  {
+    pinMode(15, INPUT_PULLUP);
+    pinMode(18, INPUT_PULLUP);
+    delay(10);  // let pullups settle
+    Preferences p;
+    bool bothPaddles = (digitalRead(15) == LOW && digitalRead(18) == LOW);
+    if (bothPaddles) {
+      p.begin("mtcfg", false);
+      p.putBool("sflip", false);
+      p.end();
+      LCD_SetFlip(false);
+    } else {
+      p.begin("mtcfg", true);
+      if (p.getBool("sflip", false)) LCD_SetFlip(true);
+      p.end();
+    }
+  }
 
   // Splash screen
   {

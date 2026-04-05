@@ -2,9 +2,201 @@
 #include "MT_UI.h"
 #include "MT_Keyer.h"
 #include "MT_Settings.h"
+#include "MT_NeoPixel.h"
+#include "MT_Sidetone.h"
+#include "Gyro_QMI8658.h"
+#include "Display_ST7789.h"
 
 extern const lv_font_t* ui_font_large;
 extern const lv_font_t* ui_font_normal;
+
+// ── Easter egg ──
+static uint8_t  eggTaps = 0;
+static uint32_t eggLastTap = 0;
+static lv_obj_t* eggOverlay = NULL;
+static lv_timer_t* eggTimer = NULL;
+
+static void eggDismiss(lv_event_t* e) {
+  (void)e;
+  Sidetone_Off();
+  NeoPixel_RainbowStop();
+  if (eggTimer) { lv_timer_del(eggTimer); eggTimer = NULL; }
+  if (eggOverlay) { lv_obj_delete(eggOverlay); eggOverlay = NULL; }
+}
+
+// ── IMU gravity balls ──
+#define EGG_BALLS 8
+#define BALL_SZ   12
+#define BALL_LIFE 3000  // ms before fade+respawn
+static struct { float x, y, vx, vy; uint32_t col; uint32_t born; } ball[EGG_BALLS];
+static lv_obj_t* ballObj[EGG_BALLS] = {};
+static const uint32_t bcols[] = {0xFF3D00, 0x00E676, 0x42A5F5, 0xFFB300, 0xFF00FF, 0xFFFF00, 0x00FFFF, 0xFF6600};
+
+static void ballSpawn(int i) {
+  ball[i].x = 40 + random(0, 240);
+  ball[i].y = 30 + random(0, 140);
+  ball[i].vx = random(-20, 21) / 10.0f;
+  ball[i].vy = random(-20, 21) / 10.0f;
+  ball[i].col = bcols[random(0, 8)];
+  ball[i].born = millis();
+  if (ballObj[i]) {
+    lv_obj_set_style_bg_color(ballObj[i], lv_color_hex(ball[i].col), 0);
+    lv_obj_set_style_bg_opa(ballObj[i], LV_OPA_COVER, 0);
+  }
+}
+
+// ── Morse 73 playback: "--..." + "...--" ──
+static const char* morse73 = "--...x...--";  // x = char gap
+static uint8_t  morsePos  = 0;
+static int16_t  morseCtr  = 0;
+static bool     morseTone = false;
+static bool     morseDone = false;
+#define MORSE_DIT  6   // ticks per dit (~240ms at 40ms/tick ≈ 12 WPM)
+#define MORSE_DAH  18
+
+// Morse visual bars
+#define MORSE_MAX_BARS 12
+static lv_obj_t* morseBars[MORSE_MAX_BARS] = {};
+static uint8_t morseBarIdx = 0;
+static int16_t morseBarX = 60;
+
+// Text label
+static lv_obj_t* eggMsgLbl = NULL;
+
+static void eggAnimTick(lv_timer_t* t) {
+  if (!eggOverlay) return;
+
+  // ── IMU gravity balls ──
+  float ax = -Accel.x * 0.8f;  // negate X for correct left/right
+  float ay = Accel.y * 0.8f;
+  // Negate axes when screen is flipped 180°
+  if (display_flipped) { ax = -ax; ay = -ay; }
+  uint32_t now = millis();
+  for (int i = 0; i < EGG_BALLS; i++) {
+    uint32_t age = now - ball[i].born;
+    // Fade out in last 500ms of life, then respawn
+    if (age > BALL_LIFE) {
+      ballSpawn(i);
+      age = 0;
+    } else if (age > BALL_LIFE - 500) {
+      uint8_t fade = 255 - ((age - (BALL_LIFE - 500)) * 255 / 500);
+      if (ballObj[i]) lv_obj_set_style_bg_opa(ballObj[i], fade, 0);
+    } else {
+      if (ballObj[i]) lv_obj_set_style_bg_opa(ballObj[i], LV_OPA_COVER, 0);
+    }
+    ball[i].vx += ax;
+    ball[i].vy -= ay;
+    ball[i].vx *= 0.98f;
+    ball[i].vy *= 0.98f;
+    ball[i].x += ball[i].vx;
+    ball[i].y += ball[i].vy;
+    if (ball[i].x < 0)   { ball[i].x = 0;   ball[i].vx = -ball[i].vx * 0.7f; }
+    if (ball[i].x > 308)  { ball[i].x = 308; ball[i].vx = -ball[i].vx * 0.7f; }
+    if (ball[i].y < 0)    { ball[i].y = 0;   ball[i].vy = -ball[i].vy * 0.7f; }
+    if (ball[i].y > 228)  { ball[i].y = 228; ball[i].vy = -ball[i].vy * 0.7f; }
+    if (ballObj[i]) lv_obj_set_pos(ballObj[i], (int16_t)ball[i].x, (int16_t)ball[i].y);
+  }
+
+  // ── Morse 73 playback ──
+  if (!morseDone) {
+    if (morseCtr > 0) { morseCtr--; return; }
+    char elem = morse73[morsePos];
+    if (elem == '\0') {
+      Sidetone_Off(); morseDone = true; return;
+    }
+    if (elem == 'x') {
+      // Character gap — audio pause + visual space
+      Sidetone_Off(); morseTone = false;
+      morseCtr = MORSE_DIT * 3;
+      morseBarX += 16;  // visible gap between 7 and 3
+      morsePos++;
+    } else if (!morseTone) {
+      // Start element
+      Sidetone_On();
+      morseTone = true;
+      bool dah = (elem == '-');
+      morseCtr = dah ? MORSE_DAH : MORSE_DIT;
+      // Draw visual bar
+      if (morseBarIdx < MORSE_MAX_BARS && morseBars[morseBarIdx]) {
+        int16_t w = dah ? 24 : 10;
+        lv_obj_set_size(morseBars[morseBarIdx], w, 8);
+        lv_obj_set_pos(morseBars[morseBarIdx], morseBarX, 195);
+        lv_obj_set_style_bg_color(morseBars[morseBarIdx], dah ? lv_color_hex(0xFFB300) : lv_color_hex(0x00E676), 0);
+        lv_obj_set_style_bg_opa(morseBars[morseBarIdx], LV_OPA_COVER, 0);
+        lv_obj_clear_flag(morseBars[morseBarIdx], LV_OBJ_FLAG_HIDDEN);
+        morseBarX += w + 4;
+        morseBarIdx++;
+      }
+    } else {
+      // End element — inter-element gap
+      Sidetone_Off(); morseTone = false;
+      morseCtr = MORSE_DIT;
+      morsePos++;
+    }
+  }
+}
+
+static void eggShow(void) {
+  NeoPixel_RainbowStart();
+
+  eggOverlay = lv_obj_create(lv_screen_active());
+  lv_obj_remove_style_all(eggOverlay);
+  lv_obj_set_size(eggOverlay, 320, 240);
+  lv_obj_set_pos(eggOverlay, 0, 0);
+  lv_obj_set_style_bg_color(eggOverlay, lv_color_hex(0x000000), 0);
+  lv_obj_set_style_bg_opa(eggOverlay, LV_OPA_COVER, 0);
+  lv_obj_clear_flag(eggOverlay, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_add_flag(eggOverlay, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_add_event_cb(eggOverlay, eggDismiss, LV_EVENT_CLICKED, NULL);
+
+  // "73 de VE2HXR" 
+  eggMsgLbl = lv_label_create(eggOverlay);
+  lv_label_set_text(eggMsgLbl, "73 de VE2HXR");
+  lv_obj_set_style_text_color(eggMsgLbl, lv_color_hex(0x00E676), 0);
+#if LV_FONT_MONTSERRAT_28
+  lv_obj_set_style_text_font(eggMsgLbl, &lv_font_montserrat_28, 0);
+#endif
+  lv_obj_align(eggMsgLbl, LV_ALIGN_CENTER, 0, -20);
+
+  // Init balls — stagger birth times so they don't all respawn together
+  for (int i = 0; i < EGG_BALLS; i++) {
+    ballObj[i] = lv_obj_create(eggOverlay);
+    lv_obj_remove_style_all(ballObj[i]);
+    lv_obj_set_size(ballObj[i], BALL_SZ, BALL_SZ);
+    lv_obj_set_style_radius(ballObj[i], LV_RADIUS_CIRCLE, 0);
+    lv_obj_clear_flag(ballObj[i], LV_OBJ_FLAG_CLICKABLE);
+    ballSpawn(i);
+    ball[i].born = millis() - (i * BALL_LIFE / EGG_BALLS);  // stagger
+    lv_obj_set_pos(ballObj[i], (int16_t)ball[i].x, (int16_t)ball[i].y);
+  }
+
+  // Morse visual bar placeholders
+  morseBarIdx = 0;
+  morseBarX = 60;
+  for (int i = 0; i < MORSE_MAX_BARS; i++) {
+    morseBars[i] = lv_obj_create(eggOverlay);
+    lv_obj_remove_style_all(morseBars[i]);
+    lv_obj_set_style_radius(morseBars[i], 2, 0);
+    lv_obj_add_flag(morseBars[i], LV_OBJ_FLAG_HIDDEN);
+    lv_obj_clear_flag(morseBars[i], LV_OBJ_FLAG_CLICKABLE);
+  }
+
+  // Init morse state
+  morsePos = 0; morseCtr = MORSE_DIT * 4; morseTone = false; morseDone = false;
+
+  eggTimer = lv_timer_create(eggAnimTick, 40, NULL);
+}
+
+static void callTap_cb(lv_event_t* e) {
+  uint32_t now = millis();
+  if (now - eggLastTap > 2000) eggTaps = 0;
+  eggTaps++;
+  eggLastTap = now;
+  if (eggTaps >= 7 && !eggOverlay) {
+    eggTaps = 0;
+    eggShow();
+  }
+}
 
 // Straight key raw bar tracking for home screen
 #define HOME_SK_MAX  8
@@ -129,6 +321,8 @@ void UI_Home_Create(lv_obj_t* parent) {
   wpmCard  = makeCard(parent, "WPM",  wpmStr, lv_color_hex(0x00E676), 2,  142, 100, 66, &wpmVal);
   modeCard = makeCard(parent, "MODE", Keyer_ModeName(s->keyerMode), lv_color_hex(0xFFB300), 106, 142, 100, 66, &modeVal);
   callCard = makeCard(parent, "CALL", s->callsign, lv_color_hex(0x42A5F5), 210, 142, 100, 66, &callVal);
+  lv_obj_add_flag(callCard, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_add_event_cb(callCard, callTap_cb, LV_EVENT_CLICKED, NULL);
 }
 
 void UI_Home_AddChar(char c) {

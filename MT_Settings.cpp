@@ -3,6 +3,7 @@
 #include "MT_Sidetone.h"
 #include "MT_Koch.h"
 #include "MT_NeoPixel.h"
+#include "Display_ST7789.h"
 #include <Preferences.h>
 #include <SD_MMC.h>
 
@@ -21,6 +22,7 @@ static const mt_settings_t defaults = {
   .ambientColor = 0xFF6600,  // warm amber
   .kochLesson   = 1,
   .callsign     = "N0CALL",
+  .screenFlip   = false,
 };
 
 static mt_settings_t cfg;
@@ -42,6 +44,7 @@ static void pushToHardware(void) {
   NeoPixel_SetBrightness(cfg.ledBrightness);
   NeoPixel_SetAmbientColor(cfg.ambientColor);
   Koch_SetLesson(cfg.kochLesson);
+  LCD_SetFlip(cfg.screenFlip);
 }
 
 static void saveToNVS(void) {
@@ -57,6 +60,7 @@ static void saveToNVS(void) {
   prefs.putULong("ambc",      cfg.ambientColor);
   // Koch lesson NOT in NVS — saved to SD via Koch_Save() to avoid wear
   prefs.putString("call",     cfg.callsign);
+  prefs.putBool("sflip",      cfg.screenFlip);
   prefs.end();
 }
 
@@ -95,6 +99,7 @@ static bool loadFromNVS(void) {
   String cs = prefs.getString("call", defaults.callsign);
   strncpy(cfg.callsign, cs.c_str(), sizeof(cfg.callsign) - 1);
   cfg.callsign[sizeof(cfg.callsign) - 1] = '\0';
+  cfg.screenFlip = prefs.getBool("sflip", defaults.screenFlip);
   prefs.end();
   return true;
 }
@@ -193,6 +198,12 @@ void Settings_SetCallsign(const char* call) {
   strncpy(cfg.callsign, call, sizeof(cfg.callsign) - 1);
   cfg.callsign[sizeof(cfg.callsign) - 1] = '\0';
   for (char* p = cfg.callsign; *p; p++) *p = toupper(*p);
+  markNVSDirty();
+}
+
+void Settings_SetScreenFlip(bool flip) {
+  cfg.screenFlip = flip;
+  LCD_SetFlip(flip);
   markNVSDirty();
 }
 

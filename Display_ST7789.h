@@ -39,3 +39,7 @@ void LCD_addWindow(uint16_t Xstart, uint16_t Ystart, uint16_t Xend, uint16_t Yen
 
 void Backlight_Init(void);
 void Set_Backlight(uint8_t Light);
+
+// Screen flip (180° rotation via MADCTL)
+extern bool display_flipped;
+void LCD_SetFlip(bool flip);

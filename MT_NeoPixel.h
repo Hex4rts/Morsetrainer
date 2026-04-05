@@ -33,6 +33,10 @@ void NeoPixel_Correct(void);               // green flash
 void NeoPixel_Wrong(void);                 // red flash
 void NeoPixel_LevelUp(void);              // rainbow sweep
 
+// Continuous rainbow (Easter egg)
+void NeoPixel_RainbowStart(void);
+void NeoPixel_RainbowStop(void);
+
 // Update (call from main loop ~30 Hz)
 void NeoPixel_Update(void);
 

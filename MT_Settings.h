@@ -18,6 +18,7 @@ typedef struct {
   uint32_t      ambientColor;     // RGB color for ambient LED mode
   uint8_t       kochLesson;
   char          callsign[12];     // max 11 chars + null
+  bool          screenFlip;       // 180° screen rotation
 } mt_settings_t;
 
 // Initialise (loads from NVS, falls back to SD, then defaults)
@@ -44,6 +45,7 @@ void Settings_SetAmbientColor(uint32_t rgb);
 void Settings_FlushIfDirty(void);
 void Settings_SetKochLesson(uint8_t lesson);
 void Settings_SetCallsign(const char* call);
+void Settings_SetScreenFlip(bool flip);
 
 // Replace %CALL% in a string with the stored callsign
 void Settings_SubstituteCallsign(char* buf, size_t bufLen, const char* tmpl);

@@ -236,3 +236,12 @@ void Set_Backlight(uint8_t Light)
 
 
 
+
+// ── Screen flip ──
+bool display_flipped = false;
+
+void LCD_SetFlip(bool flip) {
+  display_flipped = flip;
+  LCD_WriteCommand(0x36);  // MADCTL
+  LCD_WriteData(flip ? 0xA0 : 0x60);  // 0x60=normal landscape, 0xA0=flipped 180°
+}

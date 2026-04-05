@@ -21,6 +21,9 @@ static bool        fxIsDah       = false;
 static uint16_t    ambientHue    = 0;
 static uint32_t    ambientColor  = 0xFF6600;  // default warm amber
 
+// Continuous rainbow (Easter egg)
+static bool        rainbowActive = false;
+
 // ============================================================================
 //  Init
 // ============================================================================
@@ -183,7 +186,23 @@ static void renderWPMMeter(void) {
 // ============================================================================
 //  Update (call ~30 Hz from main loop)
 // ============================================================================
+void NeoPixel_RainbowStart(void) { rainbowActive = true; }
+void NeoPixel_RainbowStop(void)  { rainbowActive = false; strip.clear(); strip.show(); }
+
 void NeoPixel_Update(void) {
+  // Rainbow overrides everything
+  if (rainbowActive) {
+    static uint16_t rHue = 0;
+    for (int i = 0; i < NEOPIXEL_COUNT; i++) {
+      uint16_t h = rHue + (i * 65536 / NEOPIXEL_COUNT);
+      uint32_t c = strip.ColorHSV(h, 255, 200);
+      strip.setPixelColor(i, strip.gamma32(c));
+    }
+    rHue += 512;
+    strip.show();
+    return;
+  }
+
   if (currentMode == NEO_OFF && activeFx == FX_NONE && !Keyer_SKIsDown()) return;
 
   strip.clear();

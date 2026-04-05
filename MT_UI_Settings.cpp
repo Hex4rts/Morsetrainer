@@ -34,6 +34,10 @@ static void bl_cb(lv_event_t* e) {
   int v = lv_slider_get_value((lv_obj_t*)lv_event_get_target(e));
   Settings_SetBacklight(v); Set_Backlight(v);
 }
+static void flip_cb(lv_event_t* e) {
+  bool checked = lv_obj_has_state((lv_obj_t*)lv_event_get_target(e), LV_STATE_CHECKED);
+  Settings_SetScreenFlip(checked);
+}
 static void led_cb(lv_event_t* e) {
   uint16_t s = lv_dropdown_get_selected((lv_obj_t*)lv_event_get_target(e));
   if (s < NEO_MODE_COUNT) Settings_SetLEDMode((neo_mode_t)s);
@@ -159,6 +163,15 @@ void UI_Settings_Create(lv_obj_t* parent) {
   mkLabel(r, "LIGHT");
   blSlider = mkSlider(r, 5, 100, s->backlight, 140);
   lv_obj_add_event_cb(blSlider, bl_cb, LV_EVENT_VALUE_CHANGED, NULL);
+
+  // ── Screen Flip ──
+  r = mkRow(parent);
+  mkLabel(r, "FLIP");
+  lv_obj_t* flipSw = lv_switch_create(r);
+  lv_obj_set_style_bg_color(flipSw, lv_color_hex(0x333333), 0);
+  lv_obj_set_style_bg_color(flipSw, lv_color_hex(0x00E676), LV_PART_INDICATOR | LV_STATE_CHECKED);
+  if (s->screenFlip) lv_obj_add_state(flipSw, LV_STATE_CHECKED);
+  lv_obj_add_event_cb(flipSw, flip_cb, LV_EVENT_VALUE_CHANGED, NULL);
 
   // ── LED Mode ──
   r = mkRow(parent);
