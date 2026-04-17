@@ -57,6 +57,11 @@ uint16_t Keyer_SKHeldMs(void);                          // current hold duration
 bool     Keyer_SKPopElement(uint16_t* duration_ms, bool forGame);  // read next completed element
 void     Keyer_SKFlush(bool forGame);                   // discard pending elements
 
+// Timing multipliers (set by Settings, used by ISR)
+extern float keyer_charGapMult;
+extern float keyer_wordGapMult;
+extern float keyer_ditDahMult;
+
 // Call periodically if needed (straight key debounce helper)
 // Usually not needed — the keyer runs on a 1 ms esp_timer internally.
 void Keyer_Tick(void);

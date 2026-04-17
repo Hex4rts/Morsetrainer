@@ -16,6 +16,7 @@ static lv_obj_t* blSlider    = NULL;
 static lv_obj_t* callTA      = NULL;
 static lv_obj_t* ledDrop     = NULL;
 static lv_obj_t* ledBrtSld   = NULL;
+static lv_obj_t* ledBgSld    = NULL;
 static lv_obj_t* statusLbl   = NULL;
 static lv_obj_t* kb          = NULL;
 
@@ -45,6 +46,10 @@ static void led_cb(lv_event_t* e) {
 static void ledbrt_cb(lv_event_t* e) {
   int v = lv_slider_get_value((lv_obj_t*)lv_event_get_target(e));
   Settings_SetLEDBrightness(v);
+}
+static void ledbg_cb(lv_event_t* e) {
+  int v = lv_slider_get_value((lv_obj_t*)lv_event_get_target(e));
+  Settings_SetLEDBgBrightness(v);
 }
 static void call_done(lv_event_t* e) {
   lv_event_code_t c = lv_event_get_code(e);
@@ -177,7 +182,7 @@ void UI_Settings_Create(lv_obj_t* parent) {
   r = mkRow(parent);
   mkLabel(r, "LED");
   ledDrop = lv_dropdown_create(r);
-  lv_dropdown_set_options(ledDrop, "OFF\nKEY FLASH\nWPM METER\nAMBIENT");
+  lv_dropdown_set_options(ledDrop, "OFF\nKEY FLASH\nWPM METER\nSTEADY\nBREATHE\nSTARFIELD\nCHASE\nRAINBOW");
   lv_dropdown_set_selected(ledDrop, (uint16_t)s->ledMode);
   lv_obj_set_width(ledDrop, 120);
   lv_obj_set_style_bg_color(ledDrop, lv_color_hex(0x1A1A1A), 0);
@@ -187,11 +192,21 @@ void UI_Settings_Create(lv_obj_t* parent) {
 
   // ── LED Brightness ──
   r = mkRow(parent);
-  mkLabel(r, "LED BRT");
+  // ── LED Key Brightness ──
+  r = mkRow(parent);
+  mkLabel(r, "KEY BRT");
   ledBrtSld = mkSlider(r, 0, 255, s->ledBrightness, 140);
   lv_obj_set_style_bg_color(ledBrtSld, lv_color_hex(0xFFB300), LV_PART_INDICATOR);
   lv_obj_set_style_bg_color(ledBrtSld, lv_color_hex(0xFFB300), LV_PART_KNOB);
   lv_obj_add_event_cb(ledBrtSld, ledbrt_cb, LV_EVENT_VALUE_CHANGED, NULL);
+
+  // ── LED Background Brightness ──
+  r = mkRow(parent);
+  mkLabel(r, "BG BRT");
+  ledBgSld = mkSlider(r, 0, 255, s->ledBgBrightness, 140);
+  lv_obj_set_style_bg_color(ledBgSld, lv_color_hex(0x42A5F5), LV_PART_INDICATOR);
+  lv_obj_set_style_bg_color(ledBgSld, lv_color_hex(0x42A5F5), LV_PART_KNOB);
+  lv_obj_add_event_cb(ledBgSld, ledbg_cb, LV_EVENT_VALUE_CHANGED, NULL);
 
   // ── Ambient Color presets ──
   r = mkRow(parent);

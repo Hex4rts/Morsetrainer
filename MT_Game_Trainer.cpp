@@ -962,10 +962,10 @@ static void showMenu(void) {
   b = mkMenuBtn(menuScr, "EXPERT", "sound only", lv_color_hex(0xFF3D00), 154);
   lv_obj_add_event_cb(b, expert_cb, LV_EVENT_CLICKED, NULL);
 
-  // Bottom row: BACK + RESET
+  // Bottom: BACK button centered
   lv_obj_t* bb = lv_button_create(menuScr);
   lv_obj_set_size(bb, 80, 24);
-  lv_obj_set_pos(bb, 40, 188);
+  lv_obj_set_pos(bb, 120, 188);
   lv_obj_set_style_bg_color(bb, lv_color_hex(0x333333), 0);
   lv_obj_set_style_shadow_width(bb, 0, 0);
   lv_obj_set_style_radius(bb, 4, 0);
@@ -973,17 +973,6 @@ static void showMenu(void) {
   lv_label_set_text(bl, "BACK"); lv_obj_set_style_text_color(bl, lv_color_hex(0xFF3D00), 0);
   lv_obj_center(bl);
   lv_obj_add_event_cb(bb, exit_cb, LV_EVENT_CLICKED, NULL);
-
-  lv_obj_t* rb = lv_button_create(menuScr);
-  lv_obj_set_size(rb, 80, 26);
-  lv_obj_set_pos(rb, 200, 192);
-  lv_obj_set_style_bg_color(rb, lv_color_hex(0x333333), 0);
-  lv_obj_set_style_shadow_width(rb, 0, 0);
-  lv_obj_set_style_radius(rb, 4, 0);
-  bl = lv_label_create(rb);
-  lv_label_set_text(bl, "RESET"); lv_obj_set_style_text_color(bl, lv_color_hex(0xFF3D00), 0);
-  lv_obj_center(bl);
-  lv_obj_add_event_cb(rb, reset_cb, LV_EVENT_CLICKED, NULL);
 
   lv_screen_load(menuScr);
 }

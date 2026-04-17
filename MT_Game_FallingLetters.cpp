@@ -286,7 +286,20 @@ static void startFL(FLDiff d) {
   char lb[8]; snprintf(lb, sizeof(lb), "%d", lives);
   lv_label_set_text(livesLbl, lb);
   lv_obj_set_style_text_color(livesLbl, lv_color_hex(0x00E676), 0);
-  lv_obj_align(livesLbl, LV_ALIGN_RIGHT_MID, -8, 0);
+  lv_obj_align(livesLbl, LV_ALIGN_RIGHT_MID, -50, 0);
+
+  // Exit button in HUD
+  lv_obj_t* eb = lv_button_create(hud);
+  lv_obj_set_size(eb, 36, 18);
+  lv_obj_align(eb, LV_ALIGN_RIGHT_MID, -4, 0);
+  lv_obj_set_style_bg_color(eb, lv_color_hex(0x333333), 0);
+  lv_obj_set_style_shadow_width(eb, 0, 0);
+  lv_obj_set_style_radius(eb, 4, 0);
+  lv_obj_t* ebl = lv_label_create(eb);
+  lv_label_set_text(ebl, "EXIT");
+  lv_obj_set_style_text_color(ebl, lv_color_hex(0xFF3D00), 0);
+  lv_obj_center(ebl);
+  lv_obj_add_event_cb(eb, exit_cb, LV_EVENT_CLICKED, NULL);
 
   // Danger zone
   lv_obj_t* dz = lv_obj_create(scr);

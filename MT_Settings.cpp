@@ -19,10 +19,14 @@ static const mt_settings_t defaults = {
   .backlight    = 50,
   .ledMode      = NEO_KEY_FLASH,
   .ledBrightness= 40,
+  .ledBgBrightness= 30,
   .ambientColor = 0xFF6600,  // warm amber
   .kochLesson   = 1,
   .callsign     = "N0CALL",
   .screenFlip   = false,
+  .charGapMult  = 3.0f,
+  .wordGapMult  = 7.0f,
+  .ditDahMult   = 2.0f,
 };
 
 static mt_settings_t cfg;
@@ -42,9 +46,13 @@ static void pushToHardware(void) {
   Sidetone_SetVolume(cfg.volume);
   NeoPixel_SetMode(cfg.ledMode);
   NeoPixel_SetBrightness(cfg.ledBrightness);
+  NeoPixel_SetBgBrightness(cfg.ledBgBrightness);
   NeoPixel_SetAmbientColor(cfg.ambientColor);
   Koch_SetLesson(cfg.kochLesson);
   LCD_SetFlip(cfg.screenFlip);
+  keyer_charGapMult = cfg.charGapMult;
+  keyer_wordGapMult = cfg.wordGapMult;
+  keyer_ditDahMult  = cfg.ditDahMult;
 }
 
 static void saveToNVS(void) {
@@ -57,10 +65,14 @@ static void saveToNVS(void) {
   prefs.putUChar("bl",        cfg.backlight);
   prefs.putUChar("ledm",      (uint8_t)cfg.ledMode);
   prefs.putUChar("ledb",      cfg.ledBrightness);
+  prefs.putUChar("ledbg",     cfg.ledBgBrightness);
   prefs.putULong("ambc",      cfg.ambientColor);
   // Koch lesson NOT in NVS — saved to SD via Koch_Save() to avoid wear
   prefs.putString("call",     cfg.callsign);
   prefs.putBool("sflip",      cfg.screenFlip);
+  prefs.putFloat("cgm",       cfg.charGapMult);
+  prefs.putFloat("wgm",       cfg.wordGapMult);
+  prefs.putFloat("ddm",       cfg.ditDahMult);
   prefs.end();
 }
 
@@ -94,12 +106,16 @@ static bool loadFromNVS(void) {
   cfg.backlight    = prefs.getUChar("bl",     defaults.backlight);
   cfg.ledMode      = (neo_mode_t)prefs.getUChar("ledm", defaults.ledMode);
   cfg.ledBrightness= prefs.getUChar("ledb",   defaults.ledBrightness);
+  cfg.ledBgBrightness= prefs.getUChar("ledbg", defaults.ledBgBrightness);
   cfg.ambientColor = prefs.getULong("ambc",   defaults.ambientColor);
   // Koch lesson loaded from SD via Koch_Load(), not NVS
   String cs = prefs.getString("call", defaults.callsign);
   strncpy(cfg.callsign, cs.c_str(), sizeof(cfg.callsign) - 1);
   cfg.callsign[sizeof(cfg.callsign) - 1] = '\0';
   cfg.screenFlip = prefs.getBool("sflip", defaults.screenFlip);
+  cfg.charGapMult = prefs.getFloat("cgm", defaults.charGapMult);
+  cfg.wordGapMult = prefs.getFloat("wgm", defaults.wordGapMult);
+  cfg.ditDahMult  = prefs.getFloat("ddm", defaults.ditDahMult);
   prefs.end();
   return true;
 }
@@ -136,7 +152,7 @@ void Settings_Apply(const mt_settings_t* s) {
 
 // --- Individual setters ---
 void Settings_SetWPM(uint8_t v) {
-  cfg.wpm = constrain(v, 5, 40);
+  cfg.wpm = constrain(v, 5, 60);
   Keyer_SetWPM(cfg.wpm);
   markNVSDirty();
 }
@@ -182,6 +198,12 @@ void Settings_SetLEDBrightness(uint8_t b) {
   markNVSDirty();
 }
 
+void Settings_SetLEDBgBrightness(uint8_t b) {
+  cfg.ledBgBrightness = b;
+  NeoPixel_SetBgBrightness(b);
+  markNVSDirty();
+}
+
 void Settings_SetAmbientColor(uint32_t rgb) {
   cfg.ambientColor = rgb;
   NeoPixel_SetAmbientColor(rgb);
@@ -204,6 +226,13 @@ void Settings_SetCallsign(const char* call) {
 void Settings_SetScreenFlip(bool flip) {
   cfg.screenFlip = flip;
   LCD_SetFlip(flip);
+  markNVSDirty();
+}
+
+void Settings_SetTimingMults(float cg, float wg, float dd) {
+  cfg.charGapMult = constrain(cg, 1.0f, 10.0f);
+  cfg.wordGapMult = constrain(wg, 2.0f, 20.0f);
+  cfg.ditDahMult  = constrain(dd, 1.0f, 5.0f);
   markNVSDirty();
 }
 
@@ -243,6 +272,7 @@ bool Settings_BackupToSD(void) {
   f.printf("bl=%d\n",        cfg.backlight);
   f.printf("ledm=%d\n",      (int)cfg.ledMode);
   f.printf("ledb=%d\n",      cfg.ledBrightness);
+  f.printf("ledbg=%d\n",     cfg.ledBgBrightness);
   f.printf("ambc=%lu\n",    cfg.ambientColor);
   f.printf("koch=%d\n",      cfg.kochLesson);
   f.printf("call=%s\n",      cfg.callsign);
@@ -272,6 +302,7 @@ bool Settings_RestoreFromSD(void) {
     else if (key == "bl")    cfg.backlight    = val.toInt();
     else if (key == "ledm")  cfg.ledMode      = (neo_mode_t)val.toInt();
     else if (key == "ledb")  cfg.ledBrightness= val.toInt();
+    else if (key == "ledbg") cfg.ledBgBrightness= val.toInt();
     else if (key == "ambc")  cfg.ambientColor = (uint32_t)val.toInt();
     else if (key == "koch")  cfg.kochLesson   = val.toInt();
     else if (key == "call")  { strncpy(cfg.callsign, val.c_str(), sizeof(cfg.callsign)-1); }

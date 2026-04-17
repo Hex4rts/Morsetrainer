@@ -198,6 +198,161 @@ static void callTap_cb(lv_event_t* e) {
   }
 }
 
+// ── Hidden debug menu (12 taps on WPM card) ──
+static uint8_t  dbgTaps = 0;
+static uint32_t dbgLastTap = 0;
+static lv_obj_t* dbgOverlay = NULL;
+static lv_obj_t* dbgTA_cg = NULL;  // char gap input
+static lv_obj_t* dbgTA_wg = NULL;  // word gap input
+static lv_obj_t* dbgTA_dd = NULL;  // dit/dah input
+static lv_obj_t* dbgKB = NULL;     // keyboard
+static lv_obj_t* dbgFocused = NULL; // currently focused textarea
+
+static void dbgClose(void) {
+  if (dbgOverlay) { lv_obj_delete(dbgOverlay); dbgOverlay = NULL; }
+  dbgTA_cg = dbgTA_wg = dbgTA_dd = dbgKB = dbgFocused = NULL;
+}
+
+static void dbgCancel_cb(lv_event_t* e) { dbgClose(); }
+
+static void dbgSave_cb(lv_event_t* e) {
+  float cg = atof(lv_textarea_get_text(dbgTA_cg));
+  float wg = atof(lv_textarea_get_text(dbgTA_wg));
+  float dd = atof(lv_textarea_get_text(dbgTA_dd));
+  if (cg < 1.0f) cg = 1.0f;
+  if (wg < 2.0f) wg = 2.0f;
+  if (dd < 1.0f) dd = 1.0f;
+  Settings_SetTimingMults(cg, wg, dd);
+  keyer_charGapMult = cg;
+  keyer_wordGapMult = wg;
+  keyer_ditDahMult  = dd;
+  dbgClose();
+}
+
+static void dbgDefault_cb(lv_event_t* e) {
+  lv_textarea_set_text(dbgTA_cg, "3.0");
+  lv_textarea_set_text(dbgTA_wg, "7.0");
+  lv_textarea_set_text(dbgTA_dd, "2.0");
+}
+
+static void dbgFocus_cb(lv_event_t* e) {
+  dbgFocused = (lv_obj_t*)lv_event_get_target(e);
+  if (dbgKB) {
+    // Clear field so user types fresh value
+    lv_textarea_set_text(dbgFocused, "");
+    lv_keyboard_set_textarea(dbgKB, dbgFocused);
+    lv_obj_clear_flag(dbgKB, LV_OBJ_FLAG_HIDDEN);
+  }
+}
+
+static void dbgKB_cb(lv_event_t* e) {
+  lv_event_code_t code = lv_event_get_code(e);
+  if (code == LV_EVENT_READY || code == LV_EVENT_CANCEL) {
+    lv_obj_add_flag(dbgKB, LV_OBJ_FLAG_HIDDEN);
+  }
+}
+
+static lv_obj_t* dbgMakeRow(lv_obj_t* parent, const char* label, const char* val, const char* defVal, int16_t y) {
+  lv_obj_t* lbl = lv_label_create(parent);
+  lv_label_set_text(lbl, label);
+  lv_obj_set_style_text_color(lbl, lv_color_hex(0x666666), 0);
+  lv_obj_set_pos(lbl, 10, y + 4);
+
+  lv_obj_t* ta = lv_textarea_create(parent);
+  lv_textarea_set_one_line(ta, true);
+  lv_textarea_set_max_length(ta, 5);
+  lv_textarea_set_accepted_chars(ta, "0123456789.");
+  lv_textarea_set_text(ta, val);
+  lv_obj_set_size(ta, 70, 32);
+  lv_obj_set_pos(ta, 120, y);
+  lv_obj_set_style_bg_color(ta, lv_color_hex(0x1A1A1A), 0);
+  lv_obj_set_style_text_color(ta, lv_color_hex(0x00E676), 0);
+  lv_obj_set_style_border_color(ta, lv_color_hex(0x333333), 0);
+  lv_obj_set_style_pad_top(ta, 6, 0);
+  lv_obj_set_style_pad_bottom(ta, 6, 0);
+  lv_obj_set_style_pad_left(ta, 4, 0);
+  lv_obj_set_style_anim_duration(ta, 0, LV_PART_CURSOR);
+  lv_textarea_set_cursor_click_pos(ta, false);
+  lv_obj_clear_flag(ta, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_add_event_cb(ta, dbgFocus_cb, LV_EVENT_FOCUSED, NULL);
+
+  char hint[16];
+  snprintf(hint, sizeof(hint), "(def %s)", defVal);
+  lv_obj_t* h = lv_label_create(parent);
+  lv_label_set_text(h, hint);
+  lv_obj_set_style_text_color(h, lv_color_hex(0x444444), 0);
+  lv_obj_set_pos(h, 200, y + 4);
+
+  return ta;
+}
+
+static void dbgShow(void) {
+  dbgOverlay = lv_obj_create(lv_screen_active());
+  lv_obj_remove_style_all(dbgOverlay);
+  lv_obj_set_size(dbgOverlay, 320, 240);
+  lv_obj_set_pos(dbgOverlay, 0, 0);
+  lv_obj_set_style_bg_color(dbgOverlay, lv_color_hex(0x000000), 0);
+  lv_obj_set_style_bg_opa(dbgOverlay, LV_OPA_COVER, 0);
+  lv_obj_clear_flag(dbgOverlay, LV_OBJ_FLAG_SCROLLABLE);
+
+  lv_obj_t* title = lv_label_create(dbgOverlay);
+  lv_label_set_text(title, "KEYER TIMING");
+  lv_obj_set_style_text_color(title, lv_color_hex(0xFFB300), 0);
+  lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 4);
+
+  const mt_settings_t* s = Settings_Get();
+  char cg[8], wg[8], dd[8];
+  snprintf(cg, sizeof(cg), "%.1f", s->charGapMult);
+  snprintf(wg, sizeof(wg), "%.1f", s->wordGapMult);
+  snprintf(dd, sizeof(dd), "%.1f", s->ditDahMult);
+
+  dbgTA_cg = dbgMakeRow(dbgOverlay, "CHAR GAP", cg, "3.0", 28);
+  dbgTA_wg = dbgMakeRow(dbgOverlay, "WORD GAP", wg, "7.0", 60);
+  dbgTA_dd = dbgMakeRow(dbgOverlay, "DIT/DAH",  dd, "2.0", 92);
+
+  // Buttons
+  auto mkBtn = [](lv_obj_t* p, const char* t, uint32_t col, int16_t x, int16_t y) -> lv_obj_t* {
+    lv_obj_t* b = lv_button_create(p);
+    lv_obj_set_size(b, 70, 24);
+    lv_obj_set_pos(b, x, y);
+    lv_obj_set_style_bg_color(b, lv_color_hex(col), 0);
+    lv_obj_set_style_shadow_width(b, 0, 0);
+    lv_obj_set_style_radius(b, 4, 0);
+    lv_obj_t* l = lv_label_create(b);
+    lv_label_set_text(l, t);
+    lv_obj_set_style_text_color(l, lv_color_hex(0x000000), 0);
+    lv_obj_center(l);
+    return b;
+  };
+
+  lv_obj_t* defBtn = mkBtn(dbgOverlay, "DEFAULT", 0x666666, 10, 124);
+  lv_obj_add_event_cb(defBtn, dbgDefault_cb, LV_EVENT_CLICKED, NULL);
+  lv_obj_t* savBtn = mkBtn(dbgOverlay, "SAVE", 0x00E676, 125, 124);
+  lv_obj_add_event_cb(savBtn, dbgSave_cb, LV_EVENT_CLICKED, NULL);
+  lv_obj_t* canBtn = mkBtn(dbgOverlay, "CANCEL", 0xFF3D00, 240, 124);
+  lv_obj_add_event_cb(canBtn, dbgCancel_cb, LV_EVENT_CLICKED, NULL);
+
+  // Keyboard
+  dbgKB = lv_keyboard_create(dbgOverlay);
+  lv_obj_set_size(dbgKB, 320, 88);
+  lv_obj_align(dbgKB, LV_ALIGN_BOTTOM_MID, 0, 0);
+  lv_keyboard_set_mode(dbgKB, LV_KEYBOARD_MODE_NUMBER);
+  lv_obj_add_flag(dbgKB, LV_OBJ_FLAG_HIDDEN);
+  lv_obj_add_event_cb(dbgKB, dbgKB_cb, LV_EVENT_READY, NULL);
+  lv_obj_add_event_cb(dbgKB, dbgKB_cb, LV_EVENT_CANCEL, NULL);
+}
+
+static void wpmTap_cb(lv_event_t* e) {
+  uint32_t now = millis();
+  if (now - dbgLastTap > 2000) dbgTaps = 0;
+  dbgTaps++;
+  dbgLastTap = now;
+  if (dbgTaps >= 12 && !dbgOverlay) {
+    dbgTaps = 0;
+    dbgShow();
+  }
+}
+
 // Straight key raw bar tracking for home screen
 #define HOME_SK_MAX  8
 static struct { int16_t x; int16_t w; } homeSKBars[HOME_SK_MAX];
@@ -319,6 +474,8 @@ void UI_Home_Create(lv_obj_t* parent) {
   const mt_settings_t* s = Settings_Get();
   char wpmStr[8]; snprintf(wpmStr, sizeof(wpmStr), "%d", s->wpm);
   wpmCard  = makeCard(parent, "WPM",  wpmStr, lv_color_hex(0x00E676), 2,  142, 100, 66, &wpmVal);
+  lv_obj_add_flag(wpmCard, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_add_event_cb(wpmCard, wpmTap_cb, LV_EVENT_CLICKED, NULL);
   modeCard = makeCard(parent, "MODE", Keyer_ModeName(s->keyerMode), lv_color_hex(0xFFB300), 106, 142, 100, 66, &modeVal);
   callCard = makeCard(parent, "CALL", s->callsign, lv_color_hex(0x42A5F5), 210, 142, 100, 66, &callVal);
   lv_obj_add_flag(callCard, LV_OBJ_FLAG_CLICKABLE);

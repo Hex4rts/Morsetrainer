@@ -8,7 +8,11 @@ typedef enum {
   NEO_OFF = 0,
   NEO_KEY_FLASH,       // flash on key down
   NEO_WPM_METER,       // bar graph of current WPM
-  NEO_AMBIENT,         // slow color cycle
+  NEO_STEADY,          // solid ambient color
+  NEO_BREATHE,         // ambient color breathing
+  NEO_STARFIELD,       // random pixels flash
+  NEO_CHASE,           // color chases around strip
+  NEO_RAINBOW,         // continuous rainbow cycle
   NEO_MODE_COUNT
 } neo_mode_t;
 
@@ -20,8 +24,10 @@ neo_mode_t NeoPixel_GetMode(void);
 const char* NeoPixel_ModeName(neo_mode_t m);
 
 // Brightness (0-255)
-void    NeoPixel_SetBrightness(uint8_t b);
+void    NeoPixel_SetBrightness(uint8_t b);    // key flash brightness
 uint8_t NeoPixel_GetBrightness(void);
+void    NeoPixel_SetBgBrightness(uint8_t b);  // background mode brightness
+uint8_t NeoPixel_GetBgBrightness(void);
 
 // Ambient color (RGB packed as 0xRRGGBB)
 void     NeoPixel_SetAmbientColor(uint32_t rgb);

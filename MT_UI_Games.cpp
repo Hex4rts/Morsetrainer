@@ -114,6 +114,43 @@ void UI_Games_Create(lv_obj_t* parent) {
     else snprintf(buf, sizeof(buf), "Best: ---");
     lv_label_set_text(hsLbl4, buf);
   }
+
+  // Reset all scores button — 2-step confirmation
+  static bool resetConfirm = false;
+  static lv_obj_t* resetLbl = NULL;
+  lv_obj_t* rb = lv_button_create(parent);
+  lv_obj_set_size(rb, 140, 22);
+  lv_obj_set_pos(rb, 90, 172);
+  lv_obj_set_style_bg_color(rb, lv_color_hex(0x333333), 0);
+  lv_obj_set_style_shadow_width(rb, 0, 0);
+  lv_obj_set_style_radius(rb, 4, 0);
+  resetLbl = lv_label_create(rb);
+  lv_label_set_text(resetLbl, "RESET SCORES");
+  lv_obj_set_style_text_color(resetLbl, lv_color_hex(0xFF3D00), 0);
+  lv_obj_center(resetLbl);
+  resetConfirm = false;
+  lv_obj_add_event_cb(rb, [](lv_event_t* e) {
+    if (!resetConfirm) {
+      resetConfirm = true;
+      if (resetLbl) {
+        lv_label_set_text(resetLbl, "CONFIRM?");
+        lv_obj_set_style_text_color(resetLbl, lv_color_hex(0xFFFFFF), 0);
+        lv_obj_set_style_bg_color((lv_obj_t*)lv_event_get_target(e), lv_color_hex(0xFF3D00), 0);
+      }
+    } else {
+      Score_ClearAll();
+      if (hsLbl1) lv_label_set_text(hsLbl1, "Best: ---");
+      if (hsLbl2) lv_label_set_text(hsLbl2, "Best: ---");
+      if (hsLbl3) lv_label_set_text(hsLbl3, "Best: ---");
+      if (hsLbl4) lv_label_set_text(hsLbl4, "Best: ---");
+      resetConfirm = false;
+      if (resetLbl) {
+        lv_label_set_text(resetLbl, "CLEARED!");
+        lv_obj_set_style_text_color(resetLbl, lv_color_hex(0x00E676), 0);
+        lv_obj_set_style_bg_color((lv_obj_t*)lv_event_get_target(e), lv_color_hex(0x333333), 0);
+      }
+    }
+  }, LV_EVENT_CLICKED, NULL);
 }
 
 void UI_Games_Refresh(void) {

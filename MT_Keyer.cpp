@@ -242,8 +242,9 @@ static void keyer_tick_iambic(void) {
           timer_ms = dit_ms * 3;
           state = KS_DAH;
         } else {
-          // No paddle — start character gap wait (2 more dit times)
-          timer_ms = dit_ms * 2;
+          // No paddle — start character gap wait
+          timer_ms = (uint32_t)(dit_ms * (keyer_charGapMult - 1.0f));
+          if (timer_ms < 1) timer_ms = 1;
           state = KS_CHAR_WAIT;
         }
       }
@@ -288,9 +289,13 @@ static volatile uint16_t sk_held_ms = 0;        // current hold duration, update
 
 // Adaptive straight key timing — learns from operator's actual speed
 static uint32_t sk_dit_avg = 80;
-#define SK_THRESHOLD()    (sk_dit_avg * 2)
-#define SK_CHAR_GAP()     (sk_dit_avg * 3)
-#define SK_WORD_GAP()     (sk_dit_avg * 7)
+// Configurable timing multipliers (set by Settings on boot)
+float keyer_charGapMult = 3.0f;
+float keyer_wordGapMult = 7.0f;
+float keyer_ditDahMult  = 2.0f;
+#define SK_THRESHOLD()    ((uint32_t)(sk_dit_avg * keyer_ditDahMult))
+#define SK_CHAR_GAP()     ((uint32_t)(sk_dit_avg * keyer_charGapMult))
+#define SK_WORD_GAP()     ((uint32_t)(sk_dit_avg * keyer_wordGapMult))
 
 static void keyer_tick_straight(void) {
   bool key_down = readDit() || readDah();
@@ -327,12 +332,12 @@ static void keyer_tick_straight(void) {
       if (down_time <= SK_THRESHOLD()) {
         patternAdd('.');
         sk_dit_avg = (sk_dit_avg * 3 + down_time) / 4;
-        if (sk_dit_avg < 20) sk_dit_avg = 20;
+        if (sk_dit_avg < 10) sk_dit_avg = 10;
       } else {
         patternAdd('-');
         uint32_t implied_dit = down_time / 3;
         sk_dit_avg = (sk_dit_avg * 3 + implied_dit) / 4;
-        if (sk_dit_avg < 20) sk_dit_avg = 20;
+        if (sk_dit_avg < 10) sk_dit_avg = 10;
       }
       up_time = 0;
     }
@@ -398,7 +403,7 @@ const char* Keyer_ModeName(keyer_mode_t m) {
 
 void Keyer_SetWPM(uint8_t w) {
   if (w < 5)  w = 5;
-  if (w > 40) w = 40;
+  if (w > 60) w = 60;
   wpm = w;
   recalcTiming();
 }

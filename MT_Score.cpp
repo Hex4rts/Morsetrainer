@@ -111,4 +111,6 @@ void Score_Clear(const char* gameName) {
 void Score_ClearAll(void) {
   Score_Clear("falling");
   Score_Clear("callrush");
+  Score_Clear("trace");
+  Score_Clear("qso");
 }

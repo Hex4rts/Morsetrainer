@@ -355,7 +355,20 @@ static void startCR(CRDiff d) {
   scoreLbl = lv_label_create(scr);
   lv_label_set_text(scoreLbl, "0");
   lv_obj_set_style_text_color(scoreLbl, lv_color_hex(0x00E676), 0);
-  lv_obj_align(scoreLbl, LV_ALIGN_TOP_RIGHT, -8, 4);
+  lv_obj_align(scoreLbl, LV_ALIGN_TOP_RIGHT, -50, 4);
+
+  // Exit button
+  lv_obj_t* eb = lv_button_create(scr);
+  lv_obj_set_size(eb, 36, 18);
+  lv_obj_align(eb, LV_ALIGN_TOP_RIGHT, -4, 2);
+  lv_obj_set_style_bg_color(eb, lv_color_hex(0x333333), 0);
+  lv_obj_set_style_shadow_width(eb, 0, 0);
+  lv_obj_set_style_radius(eb, 4, 0);
+  lv_obj_t* ebl = lv_label_create(eb);
+  lv_label_set_text(ebl, "EXIT");
+  lv_obj_set_style_text_color(ebl, lv_color_hex(0xFF3D00), 0);
+  lv_obj_center(ebl);
+  lv_obj_add_event_cb(eb, exit_cb, LV_EVENT_CLICKED, NULL);
 
   // "SEND THIS CALLSIGN"
   lv_obj_t* hint = lv_label_create(scr);

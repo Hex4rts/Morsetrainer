@@ -14,11 +14,16 @@ typedef struct {
   bool          paddleSwap;
   uint8_t       backlight;        // 0–100
   neo_mode_t    ledMode;
-  uint8_t       ledBrightness;    // 0–255
+  uint8_t       ledBrightness;    // 0–255 (key flash brightness)
+  uint8_t       ledBgBrightness;  // 0–255 (background mode brightness)
   uint32_t      ambientColor;     // RGB color for ambient LED mode
   uint8_t       kochLesson;
   char          callsign[12];     // max 11 chars + null
   bool          screenFlip;       // 180° screen rotation
+  // Keyer timing multipliers (hidden debug menu)
+  float         charGapMult;      // character gap = dit × this (default 3.0)
+  float         wordGapMult;      // word gap = dit × this (default 7.0)
+  float         ditDahMult;       // dit/dah threshold = dit × this (default 2.0)
 } mt_settings_t;
 
 // Initialise (loads from NVS, falls back to SD, then defaults)
@@ -39,6 +44,7 @@ void Settings_SetPaddleSwap(bool swap);
 void Settings_SetBacklight(uint8_t bl);
 void Settings_SetLEDMode(neo_mode_t m);
 void Settings_SetLEDBrightness(uint8_t b);
+void Settings_SetLEDBgBrightness(uint8_t b);
 void Settings_SetAmbientColor(uint32_t rgb);
 
 // Call periodically (~100ms) to debounce NVS writes
@@ -46,6 +52,7 @@ void Settings_FlushIfDirty(void);
 void Settings_SetKochLesson(uint8_t lesson);
 void Settings_SetCallsign(const char* call);
 void Settings_SetScreenFlip(bool flip);
+void Settings_SetTimingMults(float charGap, float wordGap, float ditDah);
 
 // Replace %CALL% in a string with the stored callsign
 void Settings_SubstituteCallsign(char* buf, size_t bufLen, const char* tmpl);
