@@ -73,7 +73,7 @@ void setup() {
   {
     pinMode(15, INPUT_PULLUP);
     pinMode(18, INPUT_PULLUP);
-    delay(10);  // let pullups settle
+    delay(10);
     Preferences p;
     bool bothPaddles = (digitalRead(15) == LOW && digitalRead(18) == LOW);
     if (bothPaddles) {

@@ -20,7 +20,8 @@ static const mt_settings_t defaults = {
   .ledMode      = NEO_KEY_FLASH,
   .ledBrightness= 40,
   .ledBgBrightness= 30,
-  .ambientColor = 0xFF6600,  // warm amber
+  .ledCount     = 20,
+  .ambientColor = 0xFF6600,
   .kochLesson   = 1,
   .callsign     = "N0CALL",
   .screenFlip   = false,
@@ -31,9 +32,7 @@ static const mt_settings_t defaults = {
 
 static mt_settings_t cfg;
 static Preferences   prefs;
-
-#define NVS_NS   "mtcfg"
-#define SD_CFG   "/mt_settings.json"
+#define NVS_NS "mtcfg"
 
 // ============================================================================
 //  Internal helpers
@@ -47,6 +46,7 @@ static void pushToHardware(void) {
   NeoPixel_SetMode(cfg.ledMode);
   NeoPixel_SetBrightness(cfg.ledBrightness);
   NeoPixel_SetBgBrightness(cfg.ledBgBrightness);
+  NeoPixel_SetCount(cfg.ledCount);
   NeoPixel_SetAmbientColor(cfg.ambientColor);
   Koch_SetLesson(cfg.kochLesson);
   LCD_SetFlip(cfg.screenFlip);
@@ -55,6 +55,7 @@ static void pushToHardware(void) {
   keyer_ditDahMult  = cfg.ditDahMult;
 }
 
+// NVS: config tab settings only
 static void saveToNVS(void) {
   prefs.begin(NVS_NS, false);
   prefs.putUChar("wpm",       cfg.wpm);
@@ -66,8 +67,8 @@ static void saveToNVS(void) {
   prefs.putUChar("ledm",      (uint8_t)cfg.ledMode);
   prefs.putUChar("ledb",      cfg.ledBrightness);
   prefs.putUChar("ledbg",     cfg.ledBgBrightness);
+  prefs.putUChar("ledn",      cfg.ledCount);
   prefs.putULong("ambc",      cfg.ambientColor);
-  // Koch lesson NOT in NVS — saved to SD via Koch_Save() to avoid wear
   prefs.putString("call",     cfg.callsign);
   prefs.putBool("sflip",      cfg.screenFlip);
   prefs.putFloat("cgm",       cfg.charGapMult);
@@ -76,48 +77,46 @@ static void saveToNVS(void) {
   prefs.end();
 }
 
-// Debounced NVS write — avoids hammering flash on slider drags
+static bool loadFromNVS(void) {
+  prefs.begin(NVS_NS, true);
+  if (!prefs.isKey("wpm")) { prefs.end(); return false; }
+  cfg.wpm           = prefs.getUChar("wpm",    defaults.wpm);
+  cfg.volume        = prefs.getUChar("vol",    defaults.volume);
+  cfg.sidetoneFreq  = prefs.getUShort("freq",  defaults.sidetoneFreq);
+  cfg.keyerMode     = (keyer_mode_t)prefs.getUChar("kmode", defaults.keyerMode);
+  cfg.paddleSwap    = prefs.getBool("pswap",   defaults.paddleSwap);
+  cfg.backlight     = prefs.getUChar("bl",     defaults.backlight);
+  cfg.ledMode       = (neo_mode_t)prefs.getUChar("ledm", defaults.ledMode);
+  cfg.ledBrightness = prefs.getUChar("ledb",   defaults.ledBrightness);
+  cfg.ledBgBrightness = prefs.getUChar("ledbg", defaults.ledBgBrightness);
+  cfg.ledCount      = prefs.getUChar("ledn",  defaults.ledCount);
+  cfg.ambientColor  = prefs.getULong("ambc",   defaults.ambientColor);
+  String cs = prefs.getString("call", defaults.callsign);
+  strncpy(cfg.callsign, cs.c_str(), sizeof(cfg.callsign) - 1);
+  cfg.callsign[sizeof(cfg.callsign) - 1] = '\0';
+  cfg.screenFlip    = prefs.getBool("sflip",   defaults.screenFlip);
+  cfg.charGapMult   = prefs.getFloat("cgm",    defaults.charGapMult);
+  cfg.wordGapMult   = prefs.getFloat("wgm",    defaults.wordGapMult);
+  cfg.ditDahMult    = prefs.getFloat("ddm",    defaults.ditDahMult);
+  prefs.end();
+  return true;
+}
+
+// Debounced NVS write
 static bool      nvsDirty    = false;
 static uint32_t  nvsLastMark = 0;
-#define NVS_DEBOUNCE_MS  3000  // write NVS 3 seconds after last change
+#define NVS_DEBOUNCE_MS  3000
 
-static void markNVSDirty(void) {
+static void markDirty(void) {
   nvsDirty = true;
   nvsLastMark = millis();
 }
 
-// Call this periodically (e.g. from UI_Refresh at 100ms)
 void Settings_FlushIfDirty(void) {
   if (nvsDirty && (millis() - nvsLastMark >= NVS_DEBOUNCE_MS)) {
     saveToNVS();
     nvsDirty = false;
-    printf("Settings: NVS flushed (debounced)\n");
   }
-}
-
-static bool loadFromNVS(void) {
-  prefs.begin(NVS_NS, true);
-  if (!prefs.isKey("wpm")) { prefs.end(); return false; }
-  cfg.wpm          = prefs.getUChar("wpm",    defaults.wpm);
-  cfg.volume       = prefs.getUChar("vol",    defaults.volume);
-  cfg.sidetoneFreq = prefs.getUShort("freq",  defaults.sidetoneFreq);
-  cfg.keyerMode    = (keyer_mode_t)prefs.getUChar("kmode", defaults.keyerMode);
-  cfg.paddleSwap   = prefs.getBool("pswap",   defaults.paddleSwap);
-  cfg.backlight    = prefs.getUChar("bl",     defaults.backlight);
-  cfg.ledMode      = (neo_mode_t)prefs.getUChar("ledm", defaults.ledMode);
-  cfg.ledBrightness= prefs.getUChar("ledb",   defaults.ledBrightness);
-  cfg.ledBgBrightness= prefs.getUChar("ledbg", defaults.ledBgBrightness);
-  cfg.ambientColor = prefs.getULong("ambc",   defaults.ambientColor);
-  // Koch lesson loaded from SD via Koch_Load(), not NVS
-  String cs = prefs.getString("call", defaults.callsign);
-  strncpy(cfg.callsign, cs.c_str(), sizeof(cfg.callsign) - 1);
-  cfg.callsign[sizeof(cfg.callsign) - 1] = '\0';
-  cfg.screenFlip = prefs.getBool("sflip", defaults.screenFlip);
-  cfg.charGapMult = prefs.getFloat("cgm", defaults.charGapMult);
-  cfg.wordGapMult = prefs.getFloat("wgm", defaults.wordGapMult);
-  cfg.ditDahMult  = prefs.getFloat("ddm", defaults.ditDahMult);
-  prefs.end();
-  return true;
 }
 
 // ============================================================================
@@ -125,21 +124,13 @@ static bool loadFromNVS(void) {
 // ============================================================================
 void Settings_Init(void) {
   cfg = defaults;
-
   if (loadFromNVS()) {
     printf("Settings: loaded from NVS\n");
-  } else if (Settings_RestoreFromSD()) {
-    printf("Settings: restored from SD backup\n");
-    saveToNVS();
   } else {
     printf("Settings: using defaults\n");
     saveToNVS();
   }
   pushToHardware();
-
-  // Auto-backup current settings to SD on every boot
-  if (Settings_BackupToSD())
-    printf("Settings: auto-backed up to SD\n");
 }
 
 const mt_settings_t* Settings_Get(void) { return &cfg; }
@@ -154,86 +145,94 @@ void Settings_Apply(const mt_settings_t* s) {
 void Settings_SetWPM(uint8_t v) {
   cfg.wpm = constrain(v, 5, 60);
   Keyer_SetWPM(cfg.wpm);
-  markNVSDirty();
+  markDirty();
 }
 
 void Settings_SetVolume(uint8_t v) {
   cfg.volume = constrain(v, 0, 100);
   Sidetone_SetVolume(cfg.volume);
-  markNVSDirty();
+  markDirty();
 }
 
 void Settings_SetSidetoneFreq(uint16_t hz) {
   cfg.sidetoneFreq = constrain(hz, 200, 1200);
   Sidetone_SetFreq(cfg.sidetoneFreq);
-  markNVSDirty();
+  markDirty();
 }
 
 void Settings_SetKeyerMode(keyer_mode_t m) {
   cfg.keyerMode = m;
   Keyer_SetMode(m);
-  markNVSDirty();
+  markDirty();
 }
 
 void Settings_SetPaddleSwap(bool s) {
   cfg.paddleSwap = s;
   Keyer_SetSwap(s);
-  markNVSDirty();
+  markDirty();
 }
 
 void Settings_SetBacklight(uint8_t bl) {
   cfg.backlight = constrain(bl, 0, 100);
-  markNVSDirty();
+  markDirty();
 }
 
 void Settings_SetLEDMode(neo_mode_t m) {
   cfg.ledMode = m;
   NeoPixel_SetMode(m);
-  markNVSDirty();
+  markDirty();
 }
 
 void Settings_SetLEDBrightness(uint8_t b) {
   cfg.ledBrightness = b;
   NeoPixel_SetBrightness(b);
-  markNVSDirty();
+  markDirty();
 }
 
 void Settings_SetLEDBgBrightness(uint8_t b) {
   cfg.ledBgBrightness = b;
   NeoPixel_SetBgBrightness(b);
-  markNVSDirty();
+  markDirty();
+}
+
+void Settings_SetLEDCount(uint8_t n) {
+  if (n < 1) n = 1;
+  if (n > 60) n = 60;
+  cfg.ledCount = n;
+  NeoPixel_SetCount(n);
+  markDirty();
 }
 
 void Settings_SetAmbientColor(uint32_t rgb) {
   cfg.ambientColor = rgb;
   NeoPixel_SetAmbientColor(rgb);
-  markNVSDirty();
+  markDirty();
 }
 
 void Settings_SetKochLesson(uint8_t l) {
   cfg.kochLesson = l;
   Koch_SetLesson(l);
-  Koch_Save();  // SD only — no NVS write for Koch
+  Koch_Save();
 }
 
 void Settings_SetCallsign(const char* call) {
   strncpy(cfg.callsign, call, sizeof(cfg.callsign) - 1);
   cfg.callsign[sizeof(cfg.callsign) - 1] = '\0';
   for (char* p = cfg.callsign; *p; p++) *p = toupper(*p);
-  markNVSDirty();
+  markDirty();
 }
 
 void Settings_SetScreenFlip(bool flip) {
   cfg.screenFlip = flip;
   LCD_SetFlip(flip);
-  markNVSDirty();
+  markDirty();
 }
 
 void Settings_SetTimingMults(float cg, float wg, float dd) {
   cfg.charGapMult = constrain(cg, 1.0f, 10.0f);
   cfg.wordGapMult = constrain(wg, 2.0f, 20.0f);
   cfg.ditDahMult  = constrain(dd, 1.0f, 5.0f);
-  markNVSDirty();
+  markDirty();
 }
 
 // ============================================================================
@@ -259,8 +258,10 @@ void Settings_SubstituteCallsign(char* buf, size_t bufLen, const char* tmpl) {
 }
 
 // ============================================================================
-//  SD backup / restore  (simple key=value text format)
+//  SD backup / restore (manual backup of NVS settings to SD)
 // ============================================================================
+#define SD_CFG "/mt_settings.txt"
+
 bool Settings_BackupToSD(void) {
   File f = SD_MMC.open(SD_CFG, FILE_WRITE);
   if (!f) return false;
@@ -273,11 +274,14 @@ bool Settings_BackupToSD(void) {
   f.printf("ledm=%d\n",      (int)cfg.ledMode);
   f.printf("ledb=%d\n",      cfg.ledBrightness);
   f.printf("ledbg=%d\n",     cfg.ledBgBrightness);
-  f.printf("ambc=%lu\n",    cfg.ambientColor);
-  f.printf("koch=%d\n",      cfg.kochLesson);
+  f.printf("ledn=%d\n",      cfg.ledCount);
+  f.printf("ambc=%lu\n",     cfg.ambientColor);
   f.printf("call=%s\n",      cfg.callsign);
+  f.printf("sflip=%d\n",     cfg.screenFlip ? 1 : 0);
+  f.printf("cgm=%.2f\n",     cfg.charGapMult);
+  f.printf("wgm=%.2f\n",     cfg.wordGapMult);
+  f.printf("ddm=%.2f\n",     cfg.ditDahMult);
   f.close();
-  printf("Settings: backed up to SD\n");
   return true;
 }
 
@@ -285,15 +289,12 @@ bool Settings_RestoreFromSD(void) {
   if (!SD_MMC.exists(SD_CFG)) return false;
   File f = SD_MMC.open(SD_CFG, FILE_READ);
   if (!f) return false;
-
   while (f.available()) {
-    String line = f.readStringUntil('\n');
-    line.trim();
+    String line = f.readStringUntil('\n'); line.trim();
     int eq = line.indexOf('=');
     if (eq < 0) continue;
     String key = line.substring(0, eq);
     String val = line.substring(eq + 1);
-
     if      (key == "wpm")   cfg.wpm          = val.toInt();
     else if (key == "vol")   cfg.volume       = val.toInt();
     else if (key == "freq")  cfg.sidetoneFreq = val.toInt();
@@ -303,12 +304,17 @@ bool Settings_RestoreFromSD(void) {
     else if (key == "ledm")  cfg.ledMode      = (neo_mode_t)val.toInt();
     else if (key == "ledb")  cfg.ledBrightness= val.toInt();
     else if (key == "ledbg") cfg.ledBgBrightness= val.toInt();
+    else if (key == "ledn")  cfg.ledCount       = val.toInt();
     else if (key == "ambc")  cfg.ambientColor = (uint32_t)val.toInt();
-    else if (key == "koch")  cfg.kochLesson   = val.toInt();
     else if (key == "call")  { strncpy(cfg.callsign, val.c_str(), sizeof(cfg.callsign)-1); }
+    else if (key == "sflip") cfg.screenFlip   = (val.toInt() != 0);
+    else if (key == "cgm")   cfg.charGapMult  = val.toFloat();
+    else if (key == "wgm")   cfg.wordGapMult  = val.toFloat();
+    else if (key == "ddm")   cfg.ditDahMult   = val.toFloat();
   }
   f.close();
-  printf("Settings: restored from SD\n");
+  saveToNVS();
+  pushToHardware();
   return true;
 }
 
@@ -322,5 +328,4 @@ void Settings_FactoryReset(void) {
   cfg = defaults;
   saveToNVS();
   pushToHardware();
-  printf("Settings: factory reset done\n");
 }

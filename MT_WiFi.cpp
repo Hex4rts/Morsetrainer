@@ -1,35 +1,44 @@
 #include "MT_WiFi.h"
 #include <WiFi.h>
-#include <Preferences.h>
+#include <SD_MMC.h>
 
 static bool         enabled = false;
 static wifi_state_t wifiState = WIFI_ST_OFF;
 static char         ssid[33]  = "";
 static char         pass[65]  = "";
 
-#define WIFI_NVS "mtwifi"
+#define WIFI_CFG "/mt_wifi.txt"
 
 void MTWiFi_Init(void) {
   WiFi.mode(WIFI_OFF);
-  // Load saved credentials
-  Preferences p;
-  p.begin(WIFI_NVS, true);
-  String s = p.getString("ssid", "");
-  String pw = p.getString("pass", "");
-  strncpy(ssid, s.c_str(), sizeof(ssid) - 1);
-  strncpy(pass, pw.c_str(), sizeof(pass) - 1);
-  p.end();
+  // Load saved credentials from SD
+  if (SD_MMC.exists(WIFI_CFG)) {
+    File f = SD_MMC.open(WIFI_CFG, FILE_READ);
+    if (f) {
+      while (f.available()) {
+        String line = f.readStringUntil('\n'); line.trim();
+        int eq = line.indexOf('=');
+        if (eq < 0) continue;
+        String key = line.substring(0, eq);
+        String val = line.substring(eq + 1);
+        if (key == "ssid") strncpy(ssid, val.c_str(), sizeof(ssid) - 1);
+        else if (key == "pass") strncpy(pass, val.c_str(), sizeof(pass) - 1);
+      }
+      f.close();
+    }
+  }
   printf("WiFi: init OK  ssid='%s'\n", ssid);
 }
 
 void MTWiFi_SetCredentials(const char* s, const char* pw) {
   strncpy(ssid, s, sizeof(ssid) - 1);
   strncpy(pass, pw, sizeof(pass) - 1);
-  Preferences p;
-  p.begin(WIFI_NVS, false);
-  p.putString("ssid", ssid);
-  p.putString("pass", pass);
-  p.end();
+  File f = SD_MMC.open(WIFI_CFG, FILE_WRITE);
+  if (f) {
+    f.printf("ssid=%s\n", ssid);
+    f.printf("pass=%s\n", pass);
+    f.close();
+  }
 }
 
 void MTWiFi_Enable(bool on) {

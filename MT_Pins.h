@@ -39,7 +39,7 @@
 
 // --- NeoPixels (4 strips × 5 = 20 LEDs, single data line) ---
 #define NEOPIXEL_PIN        43
-#define NEOPIXEL_COUNT      20
+#define NEOPIXEL_COUNT      60    // max supported — runtime count set in settings
 
 #define NEO_STRIP_LEN       5
 

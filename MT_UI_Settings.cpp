@@ -17,6 +17,7 @@ static lv_obj_t* callTA      = NULL;
 static lv_obj_t* ledDrop     = NULL;
 static lv_obj_t* ledBrtSld   = NULL;
 static lv_obj_t* ledBgSld    = NULL;
+static lv_obj_t* ledCountLbl = NULL;
 static lv_obj_t* statusLbl   = NULL;
 static lv_obj_t* kb          = NULL;
 
@@ -50,6 +51,19 @@ static void ledbrt_cb(lv_event_t* e) {
 static void ledbg_cb(lv_event_t* e) {
   int v = lv_slider_get_value((lv_obj_t*)lv_event_get_target(e));
   Settings_SetLEDBgBrightness(v);
+}
+static void refreshLedCount(void) {
+  if (!ledCountLbl) return;
+  char buf[8]; snprintf(buf, sizeof(buf), "%d", NeoPixel_GetCount());
+  lv_label_set_text(ledCountLbl, buf);
+}
+static void ledCountUp(lv_event_t* e) {
+  Settings_SetLEDCount(NeoPixel_GetCount() + 1);
+  refreshLedCount();
+}
+static void ledCountDown(lv_event_t* e) {
+  Settings_SetLEDCount(NeoPixel_GetCount() - 1);
+  refreshLedCount();
 }
 static void call_done(lv_event_t* e) {
   lv_event_code_t c = lv_event_get_code(e);
@@ -190,8 +204,40 @@ void UI_Settings_Create(lv_obj_t* parent) {
   lv_obj_set_style_border_color(ledDrop, lv_color_hex(0x333333), 0);
   lv_obj_add_event_cb(ledDrop, led_cb, LV_EVENT_VALUE_CHANGED, NULL);
 
-  // ── LED Brightness ──
+  // ── LED Count ──
   r = mkRow(parent);
+  mkLabel(r, "LEDs");
+  lv_obj_t* bm = lv_button_create(r);
+  lv_obj_set_size(bm, 30, 22);
+  lv_obj_set_style_bg_color(bm, lv_color_hex(0x1A1A1A), 0);
+  lv_obj_set_style_border_color(bm, lv_color_hex(0xFF3D00), 0);
+  lv_obj_set_style_border_width(bm, 1, 0);
+  lv_obj_set_style_shadow_width(bm, 0, 0);
+  lv_obj_set_style_radius(bm, 4, 0);
+  lv_obj_t* bml = lv_label_create(bm);
+  lv_label_set_text(bml, "-");
+  lv_obj_set_style_text_color(bml, lv_color_hex(0xFF3D00), 0);
+  lv_obj_center(bml);
+  lv_obj_add_event_cb(bm, ledCountDown, LV_EVENT_CLICKED, NULL);
+
+  ledCountLbl = lv_label_create(r);
+  char lcBuf[8]; snprintf(lcBuf, sizeof(lcBuf), "%d", s->ledCount);
+  lv_label_set_text(ledCountLbl, lcBuf);
+  lv_obj_set_style_text_color(ledCountLbl, lv_color_hex(0x00E676), 0);
+
+  lv_obj_t* bp = lv_button_create(r);
+  lv_obj_set_size(bp, 30, 22);
+  lv_obj_set_style_bg_color(bp, lv_color_hex(0x1A1A1A), 0);
+  lv_obj_set_style_border_color(bp, lv_color_hex(0x00E676), 0);
+  lv_obj_set_style_border_width(bp, 1, 0);
+  lv_obj_set_style_shadow_width(bp, 0, 0);
+  lv_obj_set_style_radius(bp, 4, 0);
+  lv_obj_t* bpl = lv_label_create(bp);
+  lv_label_set_text(bpl, "+");
+  lv_obj_set_style_text_color(bpl, lv_color_hex(0x00E676), 0);
+  lv_obj_center(bpl);
+  lv_obj_add_event_cb(bp, ledCountUp, LV_EVENT_CLICKED, NULL);
+
   // ── LED Key Brightness ──
   r = mkRow(parent);
   mkLabel(r, "KEY BRT");

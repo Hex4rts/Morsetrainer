@@ -16,6 +16,7 @@ typedef struct {
   neo_mode_t    ledMode;
   uint8_t       ledBrightness;    // 0–255 (key flash brightness)
   uint8_t       ledBgBrightness;  // 0–255 (background mode brightness)
+  uint8_t       ledCount;         // number of NeoPixels (1–60)
   uint32_t      ambientColor;     // RGB color for ambient LED mode
   uint8_t       kochLesson;
   char          callsign[12];     // max 11 chars + null
@@ -45,6 +46,7 @@ void Settings_SetBacklight(uint8_t bl);
 void Settings_SetLEDMode(neo_mode_t m);
 void Settings_SetLEDBrightness(uint8_t b);
 void Settings_SetLEDBgBrightness(uint8_t b);
+void Settings_SetLEDCount(uint8_t n);
 void Settings_SetAmbientColor(uint32_t rgb);
 
 // Call periodically (~100ms) to debounce NVS writes

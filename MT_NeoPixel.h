@@ -23,6 +23,10 @@ void       NeoPixel_SetMode(neo_mode_t m);
 neo_mode_t NeoPixel_GetMode(void);
 const char* NeoPixel_ModeName(neo_mode_t m);
 
+// LED count (runtime, default 20)
+void    NeoPixel_SetCount(uint8_t n);
+uint8_t NeoPixel_GetCount(void);
+
 // Brightness (0-255)
 void    NeoPixel_SetBrightness(uint8_t b);    // key flash brightness
 uint8_t NeoPixel_GetBrightness(void);

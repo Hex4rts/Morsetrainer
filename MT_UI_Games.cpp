@@ -2,6 +2,7 @@
 #include "MT_UI.h"
 #include "MT_Score.h"
 #include "MT_Koch.h"
+#include <SD_MMC.h>
 #include "MT_Game_FallingLetters.h"
 #include "MT_Game_CallsignRush.h"
 #include "MT_Game_Trainer.h"
@@ -139,6 +140,8 @@ void UI_Games_Create(lv_obj_t* parent) {
       }
     } else {
       Score_ClearAll();
+      // Also clear LEARN progress
+      if (SD_MMC.exists("/trainer2.txt")) SD_MMC.remove("/trainer2.txt");
       if (hsLbl1) lv_label_set_text(hsLbl1, "Best: ---");
       if (hsLbl2) lv_label_set_text(hsLbl2, "Best: ---");
       if (hsLbl3) lv_label_set_text(hsLbl3, "Best: ---");

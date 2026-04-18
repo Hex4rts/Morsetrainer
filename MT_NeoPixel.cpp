@@ -8,6 +8,9 @@
 // ============================================================================
 static Adafruit_NeoPixel strip(NEOPIXEL_COUNT, NEOPIXEL_PIN, NEO_GRB + NEO_KHZ800);
 
+// Runtime LED count (user-configurable, default 20)
+static uint8_t neo_count = 20;
+
 static neo_mode_t  currentMode   = NEO_KEY_FLASH;
 static uint8_t     brightness    = 40;   // key flash
 static uint8_t     bgBrightness  = 30;   // background modes
@@ -33,17 +36,17 @@ void NeoPixel_Init(void) {
   strip.setBrightness(brightness);
   strip.clear();
   strip.show();
-  printf("NeoPixel: init OK  %d LEDs on GPIO %d\n", NEOPIXEL_COUNT, NEOPIXEL_PIN);
+  printf("NeoPixel: init OK  %d LEDs on GPIO %d\n", neo_count, NEOPIXEL_PIN);
 }
 
 // ============================================================================
-//  Mode & brightness
+//  Count, Mode & brightness
 // ============================================================================
 void NeoPixel_SetMode(neo_mode_t m) {
   if (m < NEO_MODE_COUNT) {
     currentMode = m;
     // Confirmation flash — brief white blink so user sees the change
-    for (int i = 0; i < NEOPIXEL_COUNT; i++) strip.setPixelColor(i, 30, 30, 30);
+    for (int i = 0; i < neo_count; i++) strip.setPixelColor(i, 30, 30, 30);
     strip.show();
     delay(100);
     strip.clear();
@@ -57,6 +60,16 @@ const char* NeoPixel_ModeName(neo_mode_t m) {
   static const char* names[] = {"Off", "Key Flash", "WPM Meter", "Steady", "Breathe", "Starfield", "Chase", "Rainbow"};
   return (m < NEO_MODE_COUNT) ? names[m] : "?";
 }
+
+void NeoPixel_SetCount(uint8_t n) {
+  if (n < 1) n = 1;
+  if (n > NEOPIXEL_COUNT) n = NEOPIXEL_COUNT;
+  neo_count = n;
+  strip.updateLength(n);
+  strip.clear();
+  strip.show();
+}
+uint8_t NeoPixel_GetCount(void) { return neo_count; }
 
 void NeoPixel_SetBrightness(uint8_t b) {
   brightness = b;
@@ -102,12 +115,12 @@ void NeoPixel_LevelUp(void) {
 //  Direct pixel control
 // ============================================================================
 void NeoPixel_SetPixel(uint8_t idx, uint8_t r, uint8_t g, uint8_t b) {
-  if (idx < NEOPIXEL_COUNT) strip.setPixelColor(idx, r, g, b);
+  if (idx < neo_count) strip.setPixelColor(idx, r, g, b);
 }
 
 void NeoPixel_SetStrip(uint8_t s, uint8_t r, uint8_t g, uint8_t b) {
   uint8_t base = s * NEO_STRIP_LEN;
-  for (uint8_t i = 0; i < NEO_STRIP_LEN && (base + i) < NEOPIXEL_COUNT; i++) {
+  for (uint8_t i = 0; i < NEO_STRIP_LEN && (base + i) < neo_count; i++) {
     strip.setPixelColor(base + i, r, g, b);
   }
 }
@@ -134,28 +147,28 @@ static void renderKeyFlash(void) {
     g = fxIsDah ? fade / 3 : 0;
     b = fxIsDah ? 0 : fade;
   }
-  for (int i = 0; i < NEOPIXEL_COUNT; i++) strip.setPixelColor(i, r, g, b);
+  for (int i = 0; i < neo_count; i++) strip.setPixelColor(i, r, g, b);
 }
 
 static void renderCorrect(void) {
   uint32_t elapsed = millis() - fxStart;
   if (elapsed > 300) { activeFx = FX_NONE; return; }
   uint8_t fade = 255 - (elapsed * 255 / 300);
-  for (int i = 0; i < NEOPIXEL_COUNT; i++) strip.setPixelColor(i, 0, fade, 0);
+  for (int i = 0; i < neo_count; i++) strip.setPixelColor(i, 0, fade, 0);
 }
 
 static void renderWrong(void) {
   uint32_t elapsed = millis() - fxStart;
   if (elapsed > 400) { activeFx = FX_NONE; return; }
   uint8_t fade = (elapsed < 200) ? 255 : (255 - ((elapsed - 200) * 255 / 200));
-  for (int i = 0; i < NEOPIXEL_COUNT; i++) strip.setPixelColor(i, fade, 0, 0);
+  for (int i = 0; i < neo_count; i++) strip.setPixelColor(i, fade, 0, 0);
 }
 
 static void renderLevelUp(void) {
   uint32_t elapsed = millis() - fxStart;
   if (elapsed > 800) { activeFx = FX_NONE; return; }
-  for (int i = 0; i < NEOPIXEL_COUNT; i++) {
-    uint16_t hue = (elapsed * 65536 / 800 + i * 65536 / NEOPIXEL_COUNT) & 0xFFFF;
+  for (int i = 0; i < neo_count; i++) {
+    uint16_t hue = (elapsed * 65536 / 800 + i * 65536 / neo_count) & 0xFFFF;
     strip.setPixelColor(i, strip.ColorHSV(hue, 255, 200));
   }
 }
@@ -165,7 +178,7 @@ static void renderSteady(void) {
   uint8_t r = (ambientColor >> 16) & 0xFF;
   uint8_t g = (ambientColor >> 8)  & 0xFF;
   uint8_t b = (ambientColor)       & 0xFF;
-  for (int i = 0; i < NEOPIXEL_COUNT; i++) strip.setPixelColor(i, r, g, b);
+  for (int i = 0; i < neo_count; i++) strip.setPixelColor(i, r, g, b);
 }
 
 // ── Breathe: ambient color with slow pulse ──
@@ -176,21 +189,21 @@ static void renderBreathe(void) {
   uint8_t r = ((ambientColor >> 16) & 0xFF) * scale;
   uint8_t g = ((ambientColor >> 8)  & 0xFF) * scale;
   uint8_t b = ((ambientColor)       & 0xFF) * scale;
-  for (int i = 0; i < NEOPIXEL_COUNT; i++) strip.setPixelColor(i, r, g, b);
+  for (int i = 0; i < neo_count; i++) strip.setPixelColor(i, r, g, b);
 }
 
 // ── Starfield: random pixels flash white briefly ──
 static void renderStarfield(void) {
   static uint8_t stars[NEOPIXEL_COUNT] = {};
-  for (int i = 0; i < NEOPIXEL_COUNT; i++) {
+  for (int i = 0; i < neo_count; i++) {
     if (stars[i] > 8) stars[i] -= 8;
     else stars[i] = 0;
   }
   if (random(0, 3) == 0) {
-    int idx = random(0, NEOPIXEL_COUNT);
+    int idx = random(0, neo_count);
     stars[idx] = 200 + random(0, 56);
   }
-  for (int i = 0; i < NEOPIXEL_COUNT; i++) {
+  for (int i = 0; i < neo_count; i++) {
     float s = stars[i] / 255.0f;
     uint8_t r = ((ambientColor >> 16) & 0xFF) * s;
     uint8_t g = ((ambientColor >> 8)  & 0xFF) * s;
@@ -202,9 +215,9 @@ static void renderStarfield(void) {
 // ── Chase: color runs around the strip ──
 static void renderChase(void) {
   static uint16_t pos = 0;
-  pos = (millis() / 60) % NEOPIXEL_COUNT;
-  for (int i = 0; i < NEOPIXEL_COUNT; i++) {
-    int dist = (i - (int)pos + NEOPIXEL_COUNT) % NEOPIXEL_COUNT;
+  pos = (millis() / 60) % neo_count;
+  for (int i = 0; i < neo_count; i++) {
+    int dist = (i - (int)pos + neo_count) % neo_count;
     if (dist < 4) {
       float fade = 1.0f - (dist / 4.0f);
       uint8_t r = ((ambientColor >> 16) & 0xFF) * fade;
@@ -219,8 +232,8 @@ static void renderChase(void) {
 static void renderRainbowMode(void) {
   static uint16_t hue = 0;
   hue += 256;
-  for (int i = 0; i < NEOPIXEL_COUNT; i++) {
-    uint16_t h = hue + (i * 65536 / NEOPIXEL_COUNT);
+  for (int i = 0; i < neo_count; i++) {
+    uint16_t h = hue + (i * 65536 / neo_count);
     uint32_t c = strip.ColorHSV(h, 255, 255);
     strip.setPixelColor(i, strip.gamma32(c));
   }
@@ -229,12 +242,12 @@ static void renderRainbowMode(void) {
 static void renderWPMMeter(void) {
   uint8_t w = Keyer_GetWPM();
   // Map 5-40 WPM to 0-20 LEDs
-  uint8_t lit = map(w, 5, 60, 1, NEOPIXEL_COUNT);
-  for (int i = 0; i < NEOPIXEL_COUNT; i++) {
+  uint8_t lit = map(w, 5, 60, 1, neo_count);
+  for (int i = 0; i < neo_count; i++) {
     if (i < lit) {
       // Green→Yellow→Red gradient
-      uint8_t r = (i > NEOPIXEL_COUNT / 2) ? map(i, NEOPIXEL_COUNT / 2, NEOPIXEL_COUNT, 0, 255) : 0;
-      uint8_t g = (i < NEOPIXEL_COUNT * 3 / 4) ? 180 : 60;
+      uint8_t r = (i > neo_count / 2) ? map(i, neo_count / 2, neo_count, 0, 255) : 0;
+      uint8_t g = (i < neo_count * 3 / 4) ? 180 : 60;
       strip.setPixelColor(i, r, g, 0);
     } else {
       strip.setPixelColor(i, 0, 0, 0);
@@ -252,8 +265,8 @@ void NeoPixel_Update(void) {
   // Rainbow overrides everything
   if (rainbowActive) {
     static uint16_t rHue = 0;
-    for (int i = 0; i < NEOPIXEL_COUNT; i++) {
-      uint16_t h = rHue + (i * 65536 / NEOPIXEL_COUNT);
+    for (int i = 0; i < neo_count; i++) {
+      uint16_t h = rHue + (i * 65536 / neo_count);
       uint32_t c = strip.ColorHSV(h, 255, 200);
       strip.setPixelColor(i, strip.gamma32(c));
     }
@@ -270,7 +283,7 @@ void NeoPixel_Update(void) {
   // Straight key held = solid green
   if (Keyer_GetMode() == KEYER_STRAIGHT && Keyer_SKIsDown()) {
     strip.setBrightness(brightness);  // key brightness
-    for (int i = 0; i < NEOPIXEL_COUNT; i++) strip.setPixelColor(i, 0, 255, 0);
+    for (int i = 0; i < neo_count; i++) strip.setPixelColor(i, 0, 255, 0);
     strip.show();
     return;
   }
