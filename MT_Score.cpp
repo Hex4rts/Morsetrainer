@@ -113,4 +113,5 @@ void Score_ClearAll(void) {
   Score_Clear("callrush");
   Score_Clear("trace");
   Score_Clear("qso");
+  Score_Clear("phrases");
 }

@@ -2,9 +2,6 @@
 
 A standalone Morse code practice device built on the **Waveshare ESP32-S3-Touch-LCD-2.8**.
 
-3D case https://www.thingiverse.com/thing:7329182
-amazon link: https://a.co/d/0cuy6utz
-
 ## Features
 
 - **Iambic A/B keyer** with WPM-driven timing
@@ -14,7 +11,7 @@ amazon link: https://a.co/d/0cuy6utz
 - **4 practice games** with difficulty levels and persistent high scores
 - **LEARN mode** — guided letter-by-letter Morse trainer with drill/recall cycle
 - **OTA updates** from SD card — drop `firmware.bin` on SD and reboot
-- **Dark theme** UI — black background, green/amber/red accents
+- **Dark military theme** UI — black background, green/amber/red accents
 
 ## Hardware
 
@@ -224,4 +221,13 @@ Core 1 (main loop)              Core 0 (DriverTask @ 33ms)
 | Game scores | SD /scores/*.txt | After each game |
 | LEARN progress | SD /trainer2.txt | On level-up / exit |
 
-73 VE2HXR
+## Version History
+
+- **v0.9** - Progress bar shows LEARN mode stats, combined menu display
+- **v0.8** - Pool < 3 auto-introduction, no recall until 3 letters learned
+- **v0.7** - Drill threshold tuning
+- **v0.6** - Score_Submit for Morse Trace + QSO, all 4 scores on OPS tab
+- **v0.5** - Fixed score display, showRefBars() for LEARN + Beginner
+- **v0.4** - Per-appearance 3-try recall, LEARN mode startPlayback fix
+- **v0.3** - LEARN mode, MT_Version.h, version in CFG tab
+- **v0.2** - Falling Letters full alphabet, kill lowest duplicate, no timer beginner
