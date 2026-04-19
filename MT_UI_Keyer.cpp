@@ -76,20 +76,7 @@ void UI_Keyer_Create(lv_obj_t* parent) {
   lv_obj_set_style_text_color(dotHintLbl, lv_color_hex(0x666666), 0);
   lv_obj_set_flex_grow(dotHintLbl, 1);
 
-  // + button
-  lv_obj_t* bp = lv_button_create(wpmRow);
-  lv_obj_set_size(bp, 36, 32);
-  lv_obj_set_style_bg_color(bp, lv_color_hex(0x1A1A1A), 0);
-  lv_obj_set_style_border_color(bp, lv_color_hex(0x00E676), 0);
-  lv_obj_set_style_border_width(bp, 1, 0);
-  lv_obj_set_style_shadow_width(bp, 0, 0);
-  lv_obj_t* bpl = lv_label_create(bp);
-  lv_label_set_text(bpl, "+");
-  lv_obj_set_style_text_color(bpl, lv_color_hex(0x00E676), 0);
-  lv_obj_center(bpl);
-  lv_obj_add_event_cb(bp, wpmUp, LV_EVENT_CLICKED, NULL);
-
-  // - button
+  // - button (left)
   lv_obj_t* bm = lv_button_create(wpmRow);
   lv_obj_set_size(bm, 36, 32);
   lv_obj_set_style_bg_color(bm, lv_color_hex(0x1A1A1A), 0);
@@ -101,6 +88,19 @@ void UI_Keyer_Create(lv_obj_t* parent) {
   lv_obj_set_style_text_color(bml, lv_color_hex(0xFF3D00), 0);
   lv_obj_center(bml);
   lv_obj_add_event_cb(bm, wpmDown, LV_EVENT_CLICKED, NULL);
+
+  // + button (right)
+  lv_obj_t* bp = lv_button_create(wpmRow);
+  lv_obj_set_size(bp, 36, 32);
+  lv_obj_set_style_bg_color(bp, lv_color_hex(0x1A1A1A), 0);
+  lv_obj_set_style_border_color(bp, lv_color_hex(0x00E676), 0);
+  lv_obj_set_style_border_width(bp, 1, 0);
+  lv_obj_set_style_shadow_width(bp, 0, 0);
+  lv_obj_t* bpl = lv_label_create(bp);
+  lv_label_set_text(bpl, "+");
+  lv_obj_set_style_text_color(bpl, lv_color_hex(0x00E676), 0);
+  lv_obj_center(bpl);
+  lv_obj_add_event_cb(bp, wpmUp, LV_EVENT_CLICKED, NULL);
 
   // ── Row 3: KEYER MODE label ──
   lbl = lv_label_create(parent);
