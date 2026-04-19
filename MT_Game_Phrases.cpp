@@ -277,7 +277,7 @@ static void tick_cb(lv_timer_t* t) {
 // ── Game over ──
 static void showGameOver(void) {
   active = false;
-  Keyer_SetCharCallback(NULL);
+  Keyer_OnChar(NULL);
   Sidetone_Off();
   if (tickTmr) lv_timer_pause(tickTmr);
 
@@ -401,7 +401,7 @@ static void startGame(Mode m) {
     setupPhraseRound();
   }
 
-  Keyer_SetCharCallback(game_char);
+  Keyer_OnChar(game_char);
   Keyer_SKFlush(true);
 
   tickTmr = lv_timer_create(tick_cb, 10, NULL);
@@ -477,13 +477,13 @@ void Game_Phrases_Stop(void) {
   active = false;
   playing = false;
   Sidetone_Off();
-  Keyer_SetCharCallback(NULL);
+  Keyer_OnChar([](char c) { UI_PushDecodedChar(c); });
   if (tickTmr) { lv_timer_delete(tickTmr); tickTmr = NULL; }
   if (scr) { lv_obj_delete(scr); scr = NULL; }
   if (menuScr) { lv_obj_delete(menuScr); menuScr = NULL; }
   overPanel = NULL; phraseLbl = NULL; meaningLbl = NULL;
   inputLbl = NULL; scoreLbl = NULL; statusLbl = NULL; progressLbl = NULL;
-  UI_ReturnToMain();
+  UI_ShowMain();
 }
 
 void Game_Phrases_Update(void) {}
