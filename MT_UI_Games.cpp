@@ -24,13 +24,13 @@ static void trainer_cb(lv_event_t* e) { Game_Trainer_Start(); }
 static void qso_cb(lv_event_t* e) { Game_QSO_Start(); }
 static void phrases_cb(lv_event_t* e) { Game_Phrases_Start(); }
 
-// Helper: game card
-static lv_obj_t* makeGameCard(lv_obj_t* parent, const char* icon, const char* name,
+// Helper: game card (no icon — title + desc + best score)
+static lv_obj_t* makeGameCard(lv_obj_t* parent, const char* name,
                                const char* desc, int16_t x, int16_t y,
                                lv_obj_t** hsLabel) {
   lv_obj_t* card = lv_obj_create(parent);
   lv_obj_remove_style_all(card);
-  lv_obj_set_size(card, 150, 64);
+  lv_obj_set_size(card, 150, 52);
   lv_obj_set_pos(card, x, y);
   lv_obj_set_style_bg_color(card, lv_color_hex(0x1A1A1A), 0);
   lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
@@ -41,30 +41,23 @@ static lv_obj_t* makeGameCard(lv_obj_t* parent, const char* icon, const char* na
   lv_obj_clear_flag(card, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_add_flag(card, LV_OBJ_FLAG_CLICKABLE);
 
-  // Icon (large green text)
-  lv_obj_t* ic = lv_label_create(card);
-  lv_label_set_text(ic, icon);
-  lv_obj_set_style_text_color(ic, lv_color_hex(0x00E676), 0);
-  lv_obj_set_style_text_font(ic, ui_font_large, 0);
-  lv_obj_align(ic, LV_ALIGN_TOP_LEFT, 0, 0);
-
-  // Name
+  // Name (title) — top line, white
   lv_obj_t* nm = lv_label_create(card);
   lv_label_set_text(nm, name);
   lv_obj_set_style_text_color(nm, lv_color_hex(0xFFFFFF), 0);
-  lv_obj_align(nm, LV_ALIGN_TOP_LEFT, 0, 22);
+  lv_obj_align(nm, LV_ALIGN_TOP_LEFT, 0, 0);
 
   // Description
   lv_obj_t* dc = lv_label_create(card);
   lv_label_set_text(dc, desc);
   lv_obj_set_style_text_color(dc, lv_color_hex(0x666666), 0);
-  lv_obj_align(dc, LV_ALIGN_TOP_LEFT, 0, 36);
+  lv_obj_align(dc, LV_ALIGN_TOP_LEFT, 0, 16);
 
   // High score
   lv_obj_t* hs = lv_label_create(card);
   lv_label_set_text(hs, "Best: ---");
   lv_obj_set_style_text_color(hs, lv_color_hex(0x00E676), 0);
-  lv_obj_align(hs, LV_ALIGN_TOP_LEFT, 0, 52);
+  lv_obj_align(hs, LV_ALIGN_TOP_LEFT, 0, 32);
   if (hsLabel) *hsLabel = hs;
 
   return card;
@@ -78,27 +71,27 @@ void UI_Games_Create(lv_obj_t* parent) {
   score_board_t cr = Score_Load("callrush");
 
   // Game cards - 2x2 grid + 5th centered
-  lv_obj_t* c1 = makeGameCard(parent, LV_SYMBOL_DOWN, "Falling Letters",
+  lv_obj_t* c1 = makeGameCard(parent, "Falling Letters",
                                "Destroy before landing", 4, 2, &hsLbl1);
   lv_obj_add_event_cb(c1, falling_cb, LV_EVENT_CLICKED, NULL);
 
-  lv_obj_t* c2 = makeGameCard(parent, LV_SYMBOL_CALL, "Callsign Rush",
+  lv_obj_t* c2 = makeGameCard(parent, "Callsign Rush",
                                "Send callsigns fast", 160, 2, &hsLbl2);
   lv_obj_add_event_cb(c2, callrush_cb, LV_EVENT_CLICKED, NULL);
 
-  lv_obj_t* c3 = makeGameCard(parent, LV_SYMBOL_AUDIO, "Morse Trace",
-                               "Learn & practice", 4, 68, &hsLbl3);
+  lv_obj_t* c3 = makeGameCard(parent, "Morse Trace",
+                               "Learn & practice", 4, 58, &hsLbl3);
   lv_obj_add_event_cb(c3, trainer_cb, LV_EVENT_CLICKED, NULL);
 
-  lv_obj_t* c4 = makeGameCard(parent, "Q", "QSO Simulator",
-                               "Practice CW contacts", 160, 68, &hsLbl4);
+  lv_obj_t* c4 = makeGameCard(parent, "QSO Simulator",
+                               "Practice CW contacts", 160, 58, &hsLbl4);
   lv_obj_add_event_cb(c4, qso_cb, LV_EVENT_CLICKED, NULL);
 
   // 5th card: CW Essentials - compact
   lv_obj_t* c5 = lv_obj_create(parent);
   lv_obj_remove_style_all(c5);
   lv_obj_set_size(c5, 150, 32);
-  lv_obj_set_pos(c5, 85, 134);
+  lv_obj_set_pos(c5, 85, 114);
   lv_obj_set_style_bg_color(c5, lv_color_hex(0x1A1A1A), 0);
   lv_obj_set_style_bg_opa(c5, LV_OPA_COVER, 0);
   lv_obj_set_style_radius(c5, 8, 0);
@@ -153,7 +146,7 @@ void UI_Games_Create(lv_obj_t* parent) {
   static lv_obj_t* resetLbl = NULL;
   lv_obj_t* rb = lv_button_create(parent);
   lv_obj_set_size(rb, 140, 22);
-  lv_obj_set_pos(rb, 90, 178);
+  lv_obj_set_pos(rb, 90, 156);
   lv_obj_set_style_bg_color(rb, lv_color_hex(0x333333), 0);
   lv_obj_set_style_shadow_width(rb, 0, 0);
   lv_obj_set_style_radius(rb, 4, 0);
