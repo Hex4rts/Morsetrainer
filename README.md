@@ -1,6 +1,7 @@
 # MorseTrainer
 
 A standalone Morse code practice device built on the **Waveshare ESP32-S3-Touch-LCD-2.8**.
+
 case : https://www.thingiverse.com/thing:7329182
 amazon: https://www.amazon.ca/dp/B0D8KKRV5V/ref=cm_sw_r_as_gl_api_gl_i_VZ4R3VETSRMXKA6MG6WE
 
