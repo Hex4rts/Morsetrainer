@@ -60,6 +60,15 @@ void UI_Init(void) {
   lv_obj_set_style_bg_color(tabview, C_BG, 0);
   lv_obj_set_style_bg_opa(tabview, LV_OPA_COVER, 0);
 
+  // Disable swipe-to-change-tab on the content area. By default the tabview's
+  // content is horizontally scrollable, so a horizontal drag (like on a slider
+  // in CFG) is interpreted as a tab swipe. Users must tap the tab bar labels
+  // to switch tabs — no more accidental jumps from CFG to OPS while adjusting
+  // a slider.
+  lv_obj_t* tab_content = lv_tabview_get_content(tabview);
+  lv_obj_clear_flag(tab_content, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_set_scroll_dir(tab_content, LV_DIR_NONE);
+
   // ── Style the tab bar — compact ──
   lv_obj_t* tab_bar = lv_tabview_get_tab_bar(tabview);
   lv_obj_set_style_bg_color(tab_bar, C_SURFACE, 0);

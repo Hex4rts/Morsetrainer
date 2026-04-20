@@ -41,33 +41,90 @@ static inline uint16_t ditMs(void)     { return 1200 / Keyer_GetWPM(); }
 static inline uint16_t ditTicks(void)  { uint16_t t = ditMs() / TICK_MS; return t ? t : 1; }
 
 // ── Phrase database: abbreviation + meaning ──
+// Ordered by real-world CW usage frequency (not alphabetical).
+// Page 1 = the absolute essentials every CW QSO needs.
+// Pages 2-6 = very common Q-codes, greetings, standard abbrevs.
+// Last page = rarer / situational items (this is the partially-filled page).
 typedef struct { const char* code; const char* meaning; } phrase_t;
 static const phrase_t phraseDB[] = {
+  // ═══ Page 1: THE ESSENTIALS — every QSO uses these ═══
   {"CQ",  "Calling any station"},
-  {"QSL", "Acknowledged / Confirmed"},
-  {"QRT", "Stop transmitting"},
-  {"QRS", "Send more slowly"},
-  {"QRZ", "Who is calling me?"},
-  {"QTH", "My location is..."},
-  {"QRM", "Interference from stations"},
-  {"QRN", "Static / Atmospheric noise"},
-  {"QSB", "Signal is fading"},
   {"DE",  "From / This is"},
   {"K",   "Go ahead / Over"},
-  {"SK",  "End of contact"},
-  {"AR",  "End of message"},
-  {"BT",  "Break / Separator"},
   {"73",  "Best regards"},
-  {"88",  "Love and kisses"},
   {"TU",  "Thank you"},
   {"R",   "Roger / Received"},
-  {"RST", "Readability Strength Tone"},
+  {"QRZ", "Who is calling?"},
+  {"QTH", "My location"},
+  {"RST", "Signal report"},
+  {"TNX", "Thanks"},
+
+  // ═══ Page 2: VERY COMMON — standard QSO flow ═══
+  {"UR",  "Your / You are"},
+  {"FB",  "Fine business"},
+  {"SK",  "End of contact"},
+  {"AR",  "End of message"},
+  {"BT",  "Break / separator"},
+  {"QSL", "Acknowledged"},
+  {"QSO", "Contact"},
+  {"QRS", "Send slower"},
+  {"QRM", "Interference"},
+  {"QSB", "Signal fading"},
+
+  // ═══ Page 3: COMMON — operating practice ═══
   {"GM",  "Good morning"},
   {"GA",  "Good afternoon"},
   {"GE",  "Good evening"},
-  {"UR",  "Your"},
-  {"HR",  "Here"},
+  {"GN",  "Good night"},
+  {"CUL", "See you later"},
+  {"AGN", "Again"},
+  {"PSE", "Please"},
+  {"HW",  "How do you copy?"},
   {"ES",  "And"},
+  {"HR",  "Here"},
+
+  // ═══ Page 4: COMMON Q-codes ═══
+  {"QRL", "Frequency busy?"},
+  {"QRN", "Static noise"},
+  {"QRT", "Stop sending"},
+  {"QRX", "Wait / standby"},
+  {"QRV", "I am ready"},
+  {"QRP", "Low power"},
+  {"QRO", "Increase power"},
+  {"QSY", "Change frequency"},
+  {"QRQ", "Send faster"},
+  {"QRU", "Nothing for you"},
+
+  // ═══ Page 5: COMMON abbreviations ═══
+  {"ANT", "Antenna"},
+  {"RIG", "Equipment"},
+  {"PWR", "Power"},
+  {"WX",  "Weather"},
+  {"OP",  "Operator"},
+  {"NR",  "Number"},
+  {"NW",  "Now"},
+  {"OM",  "Old man (op)"},
+  {"YL",  "Young lady"},
+  {"DX",  "Distant station"},
+
+  // ═══ Page 6: LESS COMMON ═══
+  {"CFM", "Confirm"},
+  {"RPT", "Repeat"},
+  {"SIG", "Signal"},
+  {"SRI", "Sorry"},
+  {"VY",  "Very"},
+  {"WID", "With"},
+  {"HV",  "Have"},
+  {"HI",  "Laughter"},
+  {"KN",  "Named station over"},
+  {"AS",  "Wait / stand by"},
+
+  // ═══ Page 7 (partial): RARE / situational ═══
+  {"BK",  "Break-in (urgent)"},
+  {"QSA", "Signal strength"},
+  {"QTR", "Time"},
+  {"GB",  "Goodbye"},
+  {"88",  "Love and kisses"},
 };
 #define NUM_PHRASES (sizeof(phraseDB)/sizeof(phraseDB[0]))
 
@@ -136,8 +193,20 @@ static uint8_t  callStage   = 0;     // 0..2*callLen-2
 static uint8_t  callCorrect = 0;     // consecutive completions at current stage
 
 // Phrase state
-static int         lastPhraseIdx = -1;
-static const char* curMeaning    = "";
+static const char* curMeaning = "";
+
+// Phrase selection: -1 = shuffle all, >=0 = specific phrase index
+// pendingMode is what the user picked from main menu (GUIDED/PRACTICE); it is
+// applied when they tap something on the list screen.
+static Mode    pendingMode = PH_PRACTICE;
+static int     phraseSel   = -1;
+
+// Fisher-Yates shuffle: cycles through ALL phrases before any repeat.
+// After shufflePos reaches NUM_PHRASES, we reshuffle and start again.
+// This was the "only 7 rolling" fix — Arduino's random() is deterministic
+// without randomSeed(), so the same few indices came up each session.
+static uint8_t shuffleOrder[NUM_PHRASES];
+static uint8_t shufflePos = 0;
 
 // User visual pattern (bars), fed from element callback (iambic)
 static char     userVisPat[MAX_BARS * 2 + 1];
@@ -163,7 +232,9 @@ static uint16_t   pauseCtr   = 0;
 
 // ── Forward decls ──
 static void exit_cb(lv_event_t* e);
-static void startGame(Mode m);
+static void startGame(Mode m, int sel);
+static void showPhraseList(void);
+static void return_to_list_cb(lv_event_t* e);
 static void setupNextTarget(void);
 static void updateTargetDisplay(void);
 static void updateCurrentLetter(void);
@@ -241,6 +312,19 @@ static void buildPlayback(const char* text) {
   }
   playBuf[p] = '\0';
   playPos = 0; playCtr = 0; playTone = false; playing = true; playDone = false;
+}
+
+// ── Fisher-Yates shuffle of phrase indices ──
+// After this, shuffleOrder[] contains every index in [0, NUM_PHRASES) exactly
+// once in random order. shufflePos tracks where we are in the cycle; when it
+// reaches NUM_PHRASES the caller re-shuffles and starts fresh.
+static void reshufflePhrases(void) {
+  for (uint8_t i = 0; i < NUM_PHRASES; i++) shuffleOrder[i] = i;
+  for (int i = (int)NUM_PHRASES - 1; i > 0; i--) {
+    int j = random(0, i + 1);
+    uint8_t t = shuffleOrder[i]; shuffleOrder[i] = shuffleOrder[j]; shuffleOrder[j] = t;
+  }
+  shufflePos = 0;
 }
 
 // ── Show full target with per-letter coloring ──
@@ -365,8 +449,14 @@ static void setupCallsignRound(void) {
 
 static void setupPhraseRound(void) {
   int idx;
-  do { idx = random(0, NUM_PHRASES); } while (idx == lastPhraseIdx && NUM_PHRASES > 1);
-  lastPhraseIdx = idx;
+  if (phraseSel >= 0 && phraseSel < (int)NUM_PHRASES) {
+    // Specific phrase — loop on the same one for practice
+    idx = phraseSel;
+  } else {
+    // Shuffle mode — cycle through all phrases, reshuffle when cycle completes
+    if (shufflePos >= NUM_PHRASES) reshufflePhrases();
+    idx = shuffleOrder[shufflePos++];
+  }
 
   strncpy(target, phraseDB[idx].code, MAX_TARGET);
   target[MAX_TARGET] = '\0';
@@ -374,8 +464,12 @@ static void setupPhraseRound(void) {
   tPos = 0;
   curMeaning = phraseDB[idx].meaning;
 
-  char prog[24];
-  snprintf(prog, sizeof(prog), "Phrase %d", roundNum + 1);
+  char prog[32];
+  if (phraseSel >= 0) {
+    snprintf(prog, sizeof(prog), "Practice: loop %d", roundNum + 1);
+  } else {
+    snprintf(prog, sizeof(prog), "Shuffle %d/%u", shufflePos, (unsigned)NUM_PHRASES);
+  }
   if (progressLbl) lv_label_set_text(progressLbl, prog);
   if (hintLbl)     lv_label_set_text(hintLbl, curMeaning);
 
@@ -613,17 +707,25 @@ static void showGameOver(void) {
 }
 
 // ── Start game ──
-static void startGame(Mode m) {
+static void startGame(Mode m, int sel) {
   mode = m;
+  phraseSel = sel;
   score = 0; roundNum = 0; streak = 0;
   active = true;
   userVisLen = 0; userVisPat[0] = '\0'; userVisDirty = false;
   lastChar = 0;
-  lastPhraseIdx = -1;
   pauseCtr = 0; pauseState = PS_NONE;
   lastPlayedStage = -1;    // force audio demo for first stage
 
-  if (menuScr) { lv_obj_delete(menuScr); menuScr = NULL; }
+  // Seed RNG and initialize shuffle (only used in shuffle mode but safe always)
+  randomSeed((uint32_t)millis() ^ (uint32_t)micros());
+  reshufflePhrases();
+
+  // Defer deletion of the current menu screen — startGame is usually called
+  // from a button INSIDE menuScr, so a synchronous delete here frees the
+  // button while its own event is still being dispatched. delete_async
+  // defers the free until LVGL has finished the current event.
+  lv_obj_t* oldMenu = menuScr; menuScr = NULL;
 
   scr = lv_obj_create(NULL);
   lv_obj_set_style_bg_color(scr, lv_color_hex(0x000000), 0);
@@ -651,6 +753,23 @@ static void startGame(Mode m) {
   lv_obj_set_style_text_color(ebl, COL_RED, 0);
   lv_obj_center(ebl);
   lv_obj_add_event_cb(eb, [](lv_event_t* e) { showGameOver(); }, LV_EVENT_CLICKED, NULL);
+
+  // LIST button — only in phrase modes. Jumps back to the picker so the user
+  // can choose another phrase (or shuffle). Does NOT save score — pressing
+  // EXIT is the "submit score and leave" path.
+  if (mode != PH_CALLSIGN) {
+    lv_obj_t* lb = lv_button_create(scr);
+    lv_obj_set_size(lb, 42, 18);
+    lv_obj_align(lb, LV_ALIGN_TOP_RIGHT, -50, 2);
+    lv_obj_set_style_bg_color(lb, lv_color_hex(0x333333), 0);
+    lv_obj_set_style_shadow_width(lb, 0, 0);
+    lv_obj_set_style_radius(lb, 4, 0);
+    lv_obj_t* lbl2 = lv_label_create(lb);
+    lv_label_set_text(lbl2, "LIST");
+    lv_obj_set_style_text_color(lbl2, COL_DIT, 0);
+    lv_obj_center(lbl2);
+    lv_obj_add_event_cb(lb, return_to_list_cb, LV_EVENT_CLICKED, NULL);
+  }
 
   // Hint line — callsign or phrase meaning
   hintLbl = lv_label_create(scr);
@@ -730,15 +849,20 @@ static void startGame(Mode m) {
 
   tickTmr = lv_timer_create(tick_cb, TICK_MS, NULL);
   lv_screen_load(scr);
+  if (oldMenu) lv_obj_delete_async(oldMenu);
 }
 
 // ── Menu ──
 void Game_Phrases_Start(void) {
-  menuScr = lv_obj_create(NULL);
-  lv_obj_set_style_bg_color(menuScr, lv_color_hex(0x050510), 0);
-  lv_obj_set_style_bg_opa(menuScr, LV_OPA_COVER, 0);
+  // Stage-then-swap pattern: may be called from the phrase-list BACK button
+  // mid event dispatch. Save oldMenu, build into newMenu, swap, async-delete.
+  lv_obj_t* oldMenu = menuScr;
 
-  lv_obj_t* title = lv_label_create(menuScr);
+  lv_obj_t* newMenu = lv_obj_create(NULL);
+  lv_obj_set_style_bg_color(newMenu, lv_color_hex(0x050510), 0);
+  lv_obj_set_style_bg_opa(newMenu, LV_OPA_COVER, 0);
+
+  lv_obj_t* title = lv_label_create(newMenu);
   lv_label_set_text(title, "CW ESSENTIALS");
   lv_obj_set_style_text_color(title, COL_DONE, 0);
 #if LV_FONT_MONTSERRAT_24
@@ -766,19 +890,27 @@ void Game_Phrases_Start(void) {
     return b;
   };
 
-  lv_obj_t* b1 = mkBtn(menuScr, "MY CALLSIGN",
+  lv_obj_t* b1 = mkBtn(newMenu, "MY CALLSIGN",
     "Letters, then sequences", 0x42A5F5, 50);
-  lv_obj_add_event_cb(b1, [](lv_event_t* e) { startGame(PH_CALLSIGN); }, LV_EVENT_CLICKED, NULL);
+  lv_obj_add_event_cb(b1, [](lv_event_t* e) {
+    startGame(PH_CALLSIGN, -1);
+  }, LV_EVENT_CLICKED, NULL);
 
-  lv_obj_t* b2 = mkBtn(menuScr, "PHRASES - GUIDED",
-    "Hear it, then key the sequence", 0x00E676, 100);
-  lv_obj_add_event_cb(b2, [](lv_event_t* e) { startGame(PH_GUIDED); }, LV_EVENT_CLICKED, NULL);
+  lv_obj_t* b2 = mkBtn(newMenu, "PHRASES - GUIDED",
+    "Hear it, then key it", 0x00E676, 100);
+  lv_obj_add_event_cb(b2, [](lv_event_t* e) {
+    pendingMode = PH_GUIDED;
+    showPhraseList();
+  }, LV_EVENT_CLICKED, NULL);
 
-  lv_obj_t* b3 = mkBtn(menuScr, "PHRASES - PRACTICE",
-    "See phrase + meaning, key it", 0xFFB300, 150);
-  lv_obj_add_event_cb(b3, [](lv_event_t* e) { startGame(PH_PRACTICE); }, LV_EVENT_CLICKED, NULL);
+  lv_obj_t* b3 = mkBtn(newMenu, "PHRASES - PRACTICE",
+    "Pick from list and practice", 0xFFB300, 150);
+  lv_obj_add_event_cb(b3, [](lv_event_t* e) {
+    pendingMode = PH_PRACTICE;
+    showPhraseList();
+  }, LV_EVENT_CLICKED, NULL);
 
-  lv_obj_t* bb = lv_button_create(menuScr);
+  lv_obj_t* bb = lv_button_create(newMenu);
   lv_obj_set_size(bb, 80, 24);
   lv_obj_align(bb, LV_ALIGN_BOTTOM_MID, 0, -12);
   lv_obj_set_style_bg_color(bb, lv_color_hex(0x333333), 0);
@@ -790,7 +922,212 @@ void Game_Phrases_Start(void) {
   lv_obj_center(bl);
   lv_obj_add_event_cb(bb, exit_cb, LV_EVENT_CLICKED, NULL);
 
-  lv_screen_load(menuScr);
+  // Swap: install new screen, load it, async-delete old
+  menuScr = newMenu;
+  lv_screen_load(newMenu);
+  if (oldMenu) lv_obj_delete_async(oldMenu);
+}
+
+// ── Phrase picker list ──
+// Paged view: 10 rows per page with PREV/NEXT navigation. This keeps the
+// LVGL object count bounded (~30 widgets on screen) so we don't exhaust the
+// 96 KB LVGL memory pool. Previously we built a button + 2 labels for EACH
+// of the 65 phrases (~198 widgets) plus a flex+scroll container — that was
+// the ESP crash: LVGL ran out of memory during list construction.
+#define LIST_PAGE_SIZE 10
+static uint8_t listPage = 0;
+
+static void phraseListItemCb(lv_event_t* e) {
+  // lv_event_get_current_target returns the object the callback was
+  // attached to (the button), regardless of which child the user actually
+  // tapped. lv_event_get_target can return an inner label instead, which
+  // would give a NULL user_data → wrong phrase. Always use current_target
+  // for user_data lookups.
+  lv_obj_t* btn = (lv_obj_t*)lv_event_get_current_target(e);
+  int idx = (int)(intptr_t)lv_obj_get_user_data(btn);
+  startGame(pendingMode, idx);
+}
+
+static void phraseShuffleCb(lv_event_t* e) {
+  startGame(pendingMode, -1);
+}
+
+static void phraseListPrevCb(lv_event_t* e) {
+  uint8_t totalPages = (NUM_PHRASES + LIST_PAGE_SIZE - 1) / LIST_PAGE_SIZE;
+  if (listPage == 0) listPage = totalPages - 1; else listPage--;
+  showPhraseList();
+}
+
+static void phraseListNextCb(lv_event_t* e) {
+  uint8_t totalPages = (NUM_PHRASES + LIST_PAGE_SIZE - 1) / LIST_PAGE_SIZE;
+  listPage++;
+  if (listPage >= totalPages) listPage = 0;
+  showPhraseList();
+}
+
+static void phraseListBackCb(lv_event_t* e) {
+  // Delete async so LVGL finishes event dispatch before freeing the object
+  // we came from. Synchronous delete from within the button's own callback
+  // is a use-after-free and was one source of the crash.
+  listPage = 0;
+  Game_Phrases_Start();
+}
+
+static void showPhraseList(void) {
+  // Tear down any existing screens BEFORE building the new one, but use
+  // delete_async so LVGL can complete the current event dispatch safely.
+  lv_obj_t* oldMenu = menuScr;
+  lv_obj_t* oldScr  = scr;
+  menuScr = NULL;
+  scr     = NULL;
+
+  lv_obj_t* newMenu = lv_obj_create(NULL);
+  lv_obj_set_style_bg_color(newMenu, lv_color_hex(0x050510), 0);
+  lv_obj_set_style_bg_opa(newMenu, LV_OPA_COVER, 0);
+
+  // Title
+  lv_obj_t* title = lv_label_create(newMenu);
+  lv_label_set_text(title, pendingMode == PH_GUIDED ? "GUIDED - pick phrase"
+                                                    : "PRACTICE - pick phrase");
+  lv_obj_set_style_text_color(title, COL_DONE, 0);
+#if LV_FONT_MONTSERRAT_16
+  lv_obj_set_style_text_font(title, &lv_font_montserrat_16, 0);
+#endif
+  lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 2);
+
+  // SHUFFLE ALL button — compact green strip
+  {
+    lv_obj_t* b = lv_button_create(newMenu);
+    lv_obj_set_size(b, 300, 18);
+    lv_obj_set_pos(b, 10, 22);
+    lv_obj_set_style_bg_color(b, lv_color_hex(0x0E3C1E), 0);
+    lv_obj_set_style_border_color(b, COL_DONE, 0);
+    lv_obj_set_style_border_width(b, 1, 0);
+    lv_obj_set_style_radius(b, 4, 0);
+    lv_obj_set_style_shadow_width(b, 0, 0);
+    lv_obj_set_style_pad_all(b, 0, 0);
+    lv_obj_t* l = lv_label_create(b);
+    lv_label_set_text(l, "* SHUFFLE ALL *");
+    lv_obj_set_style_text_color(l, COL_DONE, 0);
+    lv_obj_center(l);
+    lv_obj_add_event_cb(b, phraseShuffleCb, LV_EVENT_CLICKED, NULL);
+  }
+
+  // Compute page bounds
+  uint8_t totalPages = (NUM_PHRASES + LIST_PAGE_SIZE - 1) / LIST_PAGE_SIZE;
+  if (listPage >= totalPages) listPage = 0;
+  uint8_t start = listPage * LIST_PAGE_SIZE;
+  uint8_t end   = start + LIST_PAGE_SIZE;
+  if (end > NUM_PHRASES) end = NUM_PHRASES;
+
+  // Phrase rows — y=46..196 (150px tall zone, 10 rows × 15px)
+  // Footer lives at y=210..234, separated cleanly.
+  for (uint8_t row = 0; row < (end - start); row++) {
+    uint8_t i = start + row;
+    lv_obj_t* b = lv_button_create(newMenu);
+    lv_obj_set_size(b, 300, 14);
+    lv_obj_set_pos(b, 10, 46 + row * 15);
+    lv_obj_set_style_bg_color(b, lv_color_hex(0x1A1A1A), 0);
+    lv_obj_set_style_border_color(b, lv_color_hex(0x2A2A2A), 0);
+    lv_obj_set_style_border_width(b, 1, 0);
+    lv_obj_set_style_radius(b, 3, 0);
+    lv_obj_set_style_shadow_width(b, 0, 0);
+    lv_obj_set_style_pad_all(b, 0, 0);
+
+    lv_obj_t* code = lv_label_create(b);
+    lv_label_set_text(code, phraseDB[i].code);
+    lv_obj_set_style_text_color(code, COL_DAH, 0);
+    lv_obj_align(code, LV_ALIGN_LEFT_MID, 6, 0);
+
+    lv_obj_t* mean = lv_label_create(b);
+    lv_label_set_text(mean, phraseDB[i].meaning);
+    lv_obj_set_style_text_color(mean, lv_color_hex(0x888888), 0);
+    lv_obj_align(mean, LV_ALIGN_LEFT_MID, 48, 0);
+
+    lv_obj_set_user_data(b, (void*)(intptr_t)i);
+    lv_obj_add_event_cb(b, phraseListItemCb, LV_EVENT_CLICKED, NULL);
+  }
+
+  // Footer — all at y=214, explicit x positions. 320px screen:
+  //   BACK  x=4..64    PREV  x=72..132    page  x=148..180    NEXT  x=200..260
+  // Zero overlap between any two buttons, and well below last row (y=197 max).
+  const int16_t FOOTER_Y = 214;
+  const int16_t BTN_H    = 20;
+
+  lv_obj_t* bb = lv_button_create(newMenu);
+  lv_obj_set_size(bb, 60, BTN_H);
+  lv_obj_set_pos(bb, 4, FOOTER_Y);
+  lv_obj_set_style_bg_color(bb, lv_color_hex(0x333333), 0);
+  lv_obj_set_style_shadow_width(bb, 0, 0);
+  lv_obj_set_style_radius(bb, 4, 0);
+  lv_obj_set_style_pad_all(bb, 0, 0);
+  lv_obj_t* bl = lv_label_create(bb);
+  lv_label_set_text(bl, "BACK");
+  lv_obj_set_style_text_color(bl, COL_RED, 0);
+  lv_obj_center(bl);
+  lv_obj_add_event_cb(bb, phraseListBackCb, LV_EVENT_CLICKED, NULL);
+
+  lv_obj_t* prev = lv_button_create(newMenu);
+  lv_obj_set_size(prev, 60, BTN_H);
+  lv_obj_set_pos(prev, 72, FOOTER_Y);
+  lv_obj_set_style_bg_color(prev, lv_color_hex(0x333333), 0);
+  lv_obj_set_style_shadow_width(prev, 0, 0);
+  lv_obj_set_style_radius(prev, 4, 0);
+  lv_obj_set_style_pad_all(prev, 0, 0);
+  lv_obj_t* pl = lv_label_create(prev);
+  lv_label_set_text(pl, "< PREV");
+  lv_obj_set_style_text_color(pl, COL_DIT, 0);
+  lv_obj_center(pl);
+  lv_obj_add_event_cb(prev, phraseListPrevCb, LV_EVENT_CLICKED, NULL);
+
+  lv_obj_t* pageLbl = lv_label_create(newMenu);
+  char pb[16]; snprintf(pb, sizeof(pb), "%d/%d", listPage + 1, totalPages);
+  lv_label_set_text(pageLbl, pb);
+  lv_obj_set_style_text_color(pageLbl, lv_color_hex(0xAAAAAA), 0);
+  lv_obj_set_pos(pageLbl, 148, FOOTER_Y + 4);
+
+  lv_obj_t* nxt = lv_button_create(newMenu);
+  lv_obj_set_size(nxt, 60, BTN_H);
+  lv_obj_set_pos(nxt, 200, FOOTER_Y);
+  lv_obj_set_style_bg_color(nxt, lv_color_hex(0x333333), 0);
+  lv_obj_set_style_shadow_width(nxt, 0, 0);
+  lv_obj_set_style_radius(nxt, 4, 0);
+  lv_obj_set_style_pad_all(nxt, 0, 0);
+  lv_obj_t* nl = lv_label_create(nxt);
+  lv_label_set_text(nl, "NEXT >");
+  lv_obj_set_style_text_color(nl, COL_DIT, 0);
+  lv_obj_center(nl);
+  lv_obj_add_event_cb(nxt, phraseListNextCb, LV_EVENT_CLICKED, NULL);
+
+  // Swap in the new screen FIRST, then async-delete the old one. This
+  // ordering is critical when we arrive here from a button inside oldMenu —
+  // deleting oldMenu synchronously while its event is still on the stack
+  // corrupts the LVGL event dispatcher.
+  menuScr = newMenu;
+  lv_screen_load(newMenu);
+  if (oldMenu) lv_obj_delete_async(oldMenu);
+  if (oldScr)  lv_obj_delete_async(oldScr);
+}
+
+// LIST button in phrase-game screen: tear down the game UI (without submitting
+// score — that's EXIT's job) and return to the picker list.
+static void return_to_list_cb(lv_event_t* e) {
+  active  = false;
+  playing = false;
+  Sidetone_Off();
+  // Restore default keyer callbacks so Home tab still decodes
+  Keyer_OnChar([](char c) { UI_PushDecodedChar(c); });
+  Keyer_OnElement([](bool s, bool d) { if (s) NeoPixel_KeyFlash(d); });
+  if (tickTmr) { lv_timer_delete(tickTmr); tickTmr = NULL; }
+  // Null out UI pointers so a fresh game recreates them cleanly. Do NOT
+  // synchronously delete scr here — the LIST button is inside scr, so the
+  // event is still being dispatched. showPhraseList() handles the swap
+  // (load new screen, then async-delete the old one).
+  overPanel = NULL; refPatLbl = NULL; hintLbl = NULL;
+  inputLbl = NULL; statusLbl = NULL; scoreLbl = NULL; progressLbl = NULL;
+  for (int i = 0; i < MAX_TARGET; i++) charLbls[i] = NULL;
+  for (int i = 0; i < MAX_BARS; i++)   { refBars[i] = NULL; userBars[i] = NULL; }
+  showPhraseList();
 }
 
 static void exit_cb(lv_event_t* e) { Game_Phrases_Stop(); }
