@@ -343,6 +343,7 @@ static void showMenu(void) {
   lv_obj_set_style_bg_color(bb, lv_color_hex(0x333333), 0);
   lv_obj_set_style_shadow_width(bb, 0, 0);
   lv_obj_set_style_radius(bb, 4, 0);
+  lv_obj_set_ext_click_area(bb, 10);
   lv_obj_t* bl = lv_label_create(bb);
   lv_label_set_text(bl, "BACK"); lv_obj_set_style_text_color(bl, lv_color_hex(0xFF3D00), 0);
   lv_obj_center(bl);

@@ -328,6 +328,7 @@ void Game_CallsignRush_Start(void) {
   lv_obj_set_style_bg_color(bb, lv_color_hex(0x333333), 0);
   lv_obj_set_style_shadow_width(bb, 0, 0);
   lv_obj_set_style_radius(bb, 4, 0);
+  lv_obj_set_ext_click_area(bb, 10);
   lv_obj_t* bl = lv_label_create(bb);
   lv_label_set_text(bl, "BACK"); lv_obj_set_style_text_color(bl, lv_color_hex(0xFF3D00), 0);
   lv_obj_center(bl);
@@ -365,6 +366,7 @@ static void startCR(CRDiff d) {
   lv_obj_set_style_bg_color(eb, lv_color_hex(0x333333), 0);
   lv_obj_set_style_shadow_width(eb, 0, 0);
   lv_obj_set_style_radius(eb, 4, 0);
+  lv_obj_set_ext_click_area(eb, 10);
   lv_obj_t* ebl = lv_label_create(eb);
   lv_label_set_text(ebl, "EXIT");
   lv_obj_set_style_text_color(ebl, lv_color_hex(0xFF3D00), 0);

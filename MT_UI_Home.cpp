@@ -448,6 +448,9 @@ void UI_Home_Create(lv_obj_t* parent) {
   lv_obj_set_style_radius(clrBtn, 3, 0);
   lv_obj_set_style_pad_all(clrBtn, 0, 0);
   lv_obj_set_pos(clrBtn, 276, 18);
+  // Expand hit area beyond visible bounds — button looks 36×14 but responds
+  // to taps within a 56×34 zone. Much easier to hit on a touch screen.
+  lv_obj_set_ext_click_area(clrBtn, 10);
   lv_obj_t* clrLbl = lv_label_create(clrBtn);
   lv_label_set_text(clrLbl, "CLR");
   lv_obj_set_style_text_color(clrLbl, lv_color_hex(0xFF3D00), 0);

@@ -756,6 +756,9 @@ static void startGame(Mode m, int sel) {
   lv_obj_set_style_bg_color(eb, lv_color_hex(0x333333), 0);
   lv_obj_set_style_shadow_width(eb, 0, 0);
   lv_obj_set_style_radius(eb, 4, 0);
+  // Expand hit area 10px on all sides (touch-screen friendly). We keep EXIT
+  // and LIST separated by enough pixels that their hit zones don't overlap.
+  lv_obj_set_ext_click_area(eb, 10);
   lv_obj_t* ebl = lv_label_create(eb);
   lv_label_set_text(ebl, "EXIT");
   lv_obj_set_style_text_color(ebl, COL_RED, 0);
@@ -765,13 +768,18 @@ static void startGame(Mode m, int sel) {
   // LIST button — only in phrase modes. Jumps back to the picker so the user
   // can choose another phrase (or shuffle). Does NOT save score — pressing
   // EXIT is the "submit score and leave" path.
+  // Gap from EXIT = 68 - 46 - 42 = (320-68) - (320-46-42) ... see below.
+  // EXIT occupies x=274..316. LIST at offset -68 + 42 wide → x=210..252.
+  // 22px gap between their VISIBLE edges, which is enough for 10+10 ext_click
+  // expansion on each inner edge without overlap (leaves 2px buffer).
   if (mode != PH_CALLSIGN) {
     lv_obj_t* lb = lv_button_create(scr);
     lv_obj_set_size(lb, 42, 18);
-    lv_obj_align(lb, LV_ALIGN_TOP_RIGHT, -50, 2);
+    lv_obj_align(lb, LV_ALIGN_TOP_RIGHT, -68, 2);
     lv_obj_set_style_bg_color(lb, lv_color_hex(0x333333), 0);
     lv_obj_set_style_shadow_width(lb, 0, 0);
     lv_obj_set_style_radius(lb, 4, 0);
+    lv_obj_set_ext_click_area(lb, 10);
     lv_obj_t* lbl2 = lv_label_create(lb);
     lv_label_set_text(lbl2, "LIST");
     lv_obj_set_style_text_color(lbl2, COL_DIT, 0);
@@ -924,6 +932,7 @@ void Game_Phrases_Start(void) {
   lv_obj_set_style_bg_color(bb, lv_color_hex(0x333333), 0);
   lv_obj_set_style_shadow_width(bb, 0, 0);
   lv_obj_set_style_radius(bb, 4, 0);
+  lv_obj_set_ext_click_area(bb, 10);
   lv_obj_t* bl = lv_label_create(bb);
   lv_label_set_text(bl, "BACK");
   lv_obj_set_style_text_color(bl, COL_RED, 0);
@@ -1069,6 +1078,7 @@ static void showPhraseList(void) {
   lv_obj_set_style_shadow_width(bb, 0, 0);
   lv_obj_set_style_radius(bb, 4, 0);
   lv_obj_set_style_pad_all(bb, 0, 0);
+  lv_obj_set_ext_click_area(bb, 4);  // small: PREV is only 8px to the right
   lv_obj_t* bl = lv_label_create(bb);
   lv_label_set_text(bl, "BACK");
   lv_obj_set_style_text_color(bl, COL_RED, 0);
@@ -1082,6 +1092,7 @@ static void showPhraseList(void) {
   lv_obj_set_style_shadow_width(prev, 0, 0);
   lv_obj_set_style_radius(prev, 4, 0);
   lv_obj_set_style_pad_all(prev, 0, 0);
+  lv_obj_set_ext_click_area(prev, 4);
   lv_obj_t* pl = lv_label_create(prev);
   lv_label_set_text(pl, "< PREV");
   lv_obj_set_style_text_color(pl, COL_DIT, 0);
@@ -1101,6 +1112,7 @@ static void showPhraseList(void) {
   lv_obj_set_style_shadow_width(nxt, 0, 0);
   lv_obj_set_style_radius(nxt, 4, 0);
   lv_obj_set_style_pad_all(nxt, 0, 0);
+  lv_obj_set_ext_click_area(nxt, 10);  // tons of room on the right
   lv_obj_t* nl = lv_label_create(nxt);
   lv_label_set_text(nl, "NEXT >");
   lv_obj_set_style_text_color(nl, COL_DIT, 0);

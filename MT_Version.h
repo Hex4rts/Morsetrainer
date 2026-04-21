@@ -1,6 +1,6 @@
 #ifndef MT_VERSION_H
 #define MT_VERSION_H
 
-#define MT_VERSION "0.40"
+#define MT_VERSION "0.41"
 
 #endif

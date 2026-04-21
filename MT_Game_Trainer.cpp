@@ -973,6 +973,7 @@ static void showMenu(void) {
   lv_obj_set_style_bg_color(bb, lv_color_hex(0x333333), 0);
   lv_obj_set_style_shadow_width(bb, 0, 0);
   lv_obj_set_style_radius(bb, 4, 0);
+  lv_obj_set_ext_click_area(bb, 10);
   lv_obj_t* bl = lv_label_create(bb);
   lv_label_set_text(bl, "BACK"); lv_obj_set_style_text_color(bl, lv_color_hex(0xFF3D00), 0);
   lv_obj_center(bl);
@@ -1012,6 +1013,8 @@ static void startGame(Difficulty d) {
   lv_obj_set_style_shadow_width(eb, 0, 0);
   lv_obj_set_style_radius(eb, 3, 0);
   lv_obj_align(eb, LV_ALIGN_RIGHT_MID, -4, 0);
+  // Smaller expansion (6px) because SKIP is directly below — larger would overlap
+  lv_obj_set_ext_click_area(eb, 6);
   lv_obj_t* bl = lv_label_create(eb);
   lv_label_set_text(bl, "EXIT"); lv_obj_set_style_text_color(bl, lv_color_hex(0xFF3D00), 0);
   lv_obj_center(bl);
@@ -1085,6 +1088,7 @@ static void startGame(Difficulty d) {
   lv_obj_set_style_shadow_width(sb, 0, 0);
   lv_obj_set_style_radius(sb, 3, 0);
   lv_obj_set_pos(sb, 270, 22);
+  lv_obj_set_ext_click_area(sb, 6);
   bl = lv_label_create(sb);
   lv_label_set_text(bl, "SKIP"); lv_obj_set_style_text_color(bl, lv_color_hex(0x666666), 0);
   lv_obj_center(bl);
