@@ -105,9 +105,10 @@ static void eggAnimTick(lv_timer_t* t) {
       Sidetone_Off(); morseDone = true; return;
     }
     if (elem == 'x') {
-      // Character gap — audio pause + visual space
+      // Character gap — standard Morse 3-dit inter-char. Tone-off from the
+      // previous element already gave 1 dit of silence, so add 2 more here.
       Sidetone_Off(); morseTone = false;
-      morseCtr = MORSE_DIT * 3;
+      morseCtr = MORSE_DIT * 2;
       morseBarX += 16;  // visible gap between 7 and 3
       morsePos++;
     } else if (!morseTone) {

@@ -296,8 +296,17 @@ static void drawBars(lv_obj_t* bars[], const char* pat, int16_t x0, int16_t y) {
 }
 
 // ── Audio playback builder (guided mode) ──
-// playBuf chars:  '.' dit   '-' dah   'g' intra-char gap (1 dit)
-//                 'G' inter-char gap (3 dits)   'W' word gap (7 dits)
+// playBuf encoding — mirrors Morse Trace's approach so timing matches the keyer:
+//   '.'  dit (tone on 1 dit)
+//   '-'  dah (tone on 3 dits)
+//   'G'  EXTRA inter-character gap (2 dits). The tone-off phase after every
+//        element already provides 1 dit of silence, so 1 dit base + 2 extra
+//        from 'G' = 3 dits total = correct inter-character gap.
+//   'W'  EXTRA word gap (6 dits). 1 dit base + 6 extra = 7 dits total.
+//
+// There's no intra-character 'g' — the tone-off phase after each element IS
+// the inter-element gap. Adding an explicit 'g' would double-count it and
+// make playback 20% slower than the set WPM (the old bug).
 static void buildPlayback(const char* text) {
   int p = 0;
   for (int i = 0; text[i] && p < (int)sizeof(playBuf) - 8; i++) {
@@ -306,7 +315,6 @@ static void buildPlayback(const char* text) {
     if (!code) continue;
     if (i > 0 && text[i-1] != ' ') playBuf[p++] = 'G';
     for (int j = 0; code[j]; j++) {
-      if (j > 0) playBuf[p++] = 'g';
       playBuf[p++] = code[j];
     }
   }
@@ -576,26 +584,26 @@ static void tick_cb(lv_timer_t* t) {
         Sidetone_On(); playTone = true;
         playCtr = (elem == '-') ? ditTicks() * 3 : ditTicks();
       } else {
+        // End of element: 1 dit of silence is the inter-element gap.
+        // After this, either the next element starts, or a 'G'/'W'
+        // adds the extra silence needed for a longer gap.
         Sidetone_Off(); playTone = false;
         playCtr = ditTicks();
         playPos++;
       }
-    } else if (elem == 'g') {
-      playCtr = ditTicks();
-      playPos++;
     } else if (elem == 'G') {
-      // Inter-character gap — advance the highlighted letter so the user
-      // SEES which char is being played next. This fixes "second char
-      // animation failed to present".
-      playCtr = ditTicks() * 3;
+      // Inter-character gap: the preceding tone-off already gave 1 dit,
+      // so add 2 more dits to reach the correct 3-dit total.
+      playCtr = ditTicks() * 2;
       playPos++;
       if (tPos + 1 < tLen) {
         tPos++;
-        updateTargetDisplay();  // new letter gets amber highlight
-        updateCurrentLetter();  // new ref bars for the letter about to play
+        updateTargetDisplay();
+        updateCurrentLetter();
       }
     } else if (elem == 'W') {
-      playCtr = ditTicks() * 7;
+      // Word gap: 1 dit already from tone-off, add 6 more for 7-dit total.
+      playCtr = ditTicks() * 6;
       playPos++;
     }
     return;

@@ -758,7 +758,10 @@ static void tick_cb(lv_timer_t* t) {
       // Play the reference
       char elem = fullRef[playPos];
       if (!playTone) {
-        if (elem == ' ') { playPos++; playCtr = (ditMs() * 4) / 10; }
+        // Inter-character gap: standard Morse is 3 dits total. The preceding
+        // tone-off already emitted 1 dit of silence, so add 2 more dits here.
+        // (Was `* 4` which produced 5-dit gaps — 2 too long.)
+        if (elem == ' ') { playPos++; playCtr = (ditMs() * 2) / 10; }
         else { Sidetone_On(); playCtr = (elem == '.') ? (ditMs() / 10) : ((ditMs() * 3) / 10); playTone = true;
           if (showRefBars()) {
             char partial[MAX_BARS * 2 + 1]; int j = 0;
@@ -791,7 +794,8 @@ static void tick_cb(lv_timer_t* t) {
       }
       char elem = fullRef[playPos];
       if (!playTone) {
-        if (elem == ' ') { playPos++; playCtr = (ditMs() * 4) / 10; }
+        // Inter-character gap: 3-dit standard = 1 (from tone-off) + 2 here.
+        if (elem == ' ') { playPos++; playCtr = (ditMs() * 2) / 10; }
         else {
           Sidetone_On();
           playCtr = (elem == '.') ? (ditMs() / 10) : ((ditMs() * 3) / 10);

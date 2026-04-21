@@ -224,7 +224,8 @@ static void tick_cb(lv_timer_t* t) {
       } else {
         char e = playBuf[playPos];
         if (!playTone) {
-          if (e == ' ') { playPos++; playCtr = (ditMs() * 3) / (CR_TICK_MS); }
+          // Inter-character gap: standard 3-dit = 1 (tone-off) + 2 here.
+          if (e == ' ') { playPos++; playCtr = (ditMs() * 2) / (CR_TICK_MS); }
           else { Sidetone_On(); playCtr = (e == '.') ? (ditMs() / CR_TICK_MS) : ((ditMs() * 3) / CR_TICK_MS);
                  if (playCtr < 1) playCtr = 1; playTone = true; }
         } else { Sidetone_Off(); playTone = false; playPos++;

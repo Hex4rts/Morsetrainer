@@ -169,7 +169,9 @@ static void tick_cb(lv_timer_t* t) {
       }
       char e = playBuf[playPos];
       if (!playTone) {
-        if (e == ' ') { playPos++; playCtr = (ditMs() * 3) / 10; }
+        // Inter-character gap: standard 3-dit = 1 (tone-off) + 2 here.
+        // Was `* 3` which produced 4-dit gaps.
+        if (e == ' ') { playPos++; playCtr = (ditMs() * 2) / 10; }
         else { Sidetone_On(); playCtr = (e == '.') ? (ditMs()/10) : ((ditMs()*3)/10); playTone = true; }
       } else { Sidetone_Off(); playTone = false; playPos++; playCtr = ditMs() / 10; }
       break;
