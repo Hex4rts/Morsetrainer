@@ -377,6 +377,7 @@ static void startPlayback(void) {
       lv_label_set_text(refPatLbl, fullRef);
       clearBars(refBars);
       phase = PH_LISTEN;
+      Keyer_SetInputBlocked(true);
       lv_label_set_text(promptLbl, "COPY IT...");
       lv_obj_set_style_text_color(promptLbl, lv_color_hex(0x42A5F5), 0);
     } else {
@@ -384,6 +385,7 @@ static void startPlayback(void) {
       lv_label_set_text(refPatLbl, "");
       clearBars(refBars);
       phase = PH_WAITING;
+      Keyer_SetInputBlocked(false);
       phaseStart = millis();
       lv_label_set_text(promptLbl, "FROM MEMORY!");
       lv_obj_set_style_text_color(promptLbl, lv_color_hex(0x00E676), 0);
@@ -406,6 +408,7 @@ static void startPlayback(void) {
 
   clearBars(refBars);
   phase = PH_LISTEN;
+  Keyer_SetInputBlocked(true);
   lv_label_set_text(promptLbl, "LISTEN...");
   lv_obj_set_style_text_color(promptLbl, lv_color_hex(0xFFB300), 0);
 
@@ -438,6 +441,7 @@ static void introduceChar(uint8_t idx) {
 
   playPos = 0; playCtr = ditMs() / 10; playTone = false;
   phase = PH_INTRO;
+  Keyer_SetInputBlocked(true);
   phaseStart = millis();
 
   lv_label_set_text(promptLbl, "WATCH & LISTEN");
@@ -603,6 +607,12 @@ static void nextChallenge(void) {
 
 // ── Handle answer ──
 static void checkAnswer(void) {
+  // Slam the input gate shut the moment a verdict is reached. Anything the
+  // user keys during the 1.5 s feedback banner (especially after a wrong
+  // recall) would otherwise sit in cbuf and re-enter the next attempt — the
+  // bug the user hit where a failed recall replays the letter and the
+  // pre-keyed garbage bled into the retry.
+  Keyer_SetInputBlocked(true);
   bool correct = (strcmp(userInput, challenge) == 0);
 
   // ── LEARN mode handling ──
@@ -783,6 +793,7 @@ static void tick_cb(lv_timer_t* t) {
         // Expert: reveal the letter now that audio is done
         if (diff == DIFF_EXPERT) lv_label_set_text(challengeLbl, challenge);
         phase = PH_WAITING;
+        Keyer_SetInputBlocked(false);
         phaseStart = millis();
         lv_label_set_text(promptLbl, "YOUR TURN!");
         lv_obj_set_style_text_color(promptLbl, lv_color_hex(0x00E676), 0);
@@ -865,6 +876,7 @@ static void tick_cb(lv_timer_t* t) {
           }
         }
         NeoPixel_Wrong();
+        Keyer_SetInputBlocked(true);
         phase = PH_FEEDBACK; phaseStart = millis();
       }
       break;
@@ -1113,6 +1125,7 @@ void Game_Trainer_Stop(void) {
   }
   active = false;
   Sidetone_Off();
+  Keyer_SetInputBlocked(false);
   if (tickTmr) { lv_timer_del(tickTmr); tickTmr = NULL; }
   Keyer_OnChar([](char c) { UI_PushDecodedChar(c); });
   Keyer_OnElement([](bool s, bool d) { if (s) NeoPixel_KeyFlash(d); });

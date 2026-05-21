@@ -142,6 +142,7 @@ static void newRound(void) {
   // Expert: play audio only
   buildPlayStr();
   playPos = 0; playCtr = ditMs() / CR_TICK_MS; playTone = false; playing = true;
+  Keyer_SetInputBlocked(true);
 
   if (crdiff == CR_EXP) {
     lv_label_set_text(callLbl, "???");
@@ -173,6 +174,7 @@ static void newRound(void) {
 static void showGameOver(void) {
   active = false;
   Sidetone_Off();
+  Keyer_SetInputBlocked(false);
   if (tickTmr) lv_timer_pause(tickTmr);
 
   overPanel = lv_obj_create(scr);
@@ -216,6 +218,7 @@ static void tick_cb(lv_timer_t* t) {
       int plen = strlen(playBuf);
       if (playPos >= plen) {
         Sidetone_Off(); playing = false;
+        Keyer_SetInputBlocked(false);
         // Expert: reveal callsign after playback
         if (crdiff == CR_EXP) {
           lv_label_set_text(callLbl, target);
@@ -256,6 +259,11 @@ static void tick_cb(lv_timer_t* t) {
           NeoPixel_Wrong();
           inputPos = 0; inputBuf[0] = '\0';
           lv_label_set_text(inputLbl, "_");
+          // Throw away whatever the user was already keying for the "next"
+          // letter — the game has snapped them back to inputBuf[0] and we
+          // don't want a half-built dit/dah being treated as that retry's
+          // first element. lastChar is already cleared at the top of tick.
+          Keyer_FlushInput();
           if (crdiff != CR_BGN) {
             if (timeLeft > 2000) timeLeft -= 2000; else timeLeft = 0;
           }
@@ -430,6 +438,7 @@ static void startCR(CRDiff d) {
 void Game_CallsignRush_Stop(void) {
   active = false;
   Sidetone_Off();
+  Keyer_SetInputBlocked(false);
   if (tickTmr) { lv_timer_del(tickTmr); tickTmr = NULL; }
   Keyer_OnChar([](char c) { UI_PushDecodedChar(c); });
   if (scr) { UI_ShowMain(); lv_obj_delete(scr); scr = NULL; }

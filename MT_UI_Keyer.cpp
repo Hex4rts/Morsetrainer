@@ -10,6 +10,7 @@ static lv_obj_t* wpmBigLbl  = NULL;
 static lv_obj_t* dotHintLbl = NULL;
 static lv_obj_t* modeBtns[3]= {};
 static lv_obj_t* swapLbl    = NULL;
+static lv_obj_t* skTimingLbl = NULL;
 
 static void updateModeHighlight(void) {
   keyer_mode_t cur = Keyer_GetMode();
@@ -42,6 +43,12 @@ static void swap_cb(lv_event_t* e) {
   bool on = !Keyer_GetSwap();
   Settings_SetPaddleSwap(on);
   lv_label_set_text(swapLbl, on ? "DIT=RIGHT  DAH=LEFT" : "DIT=LEFT   DAH=RIGHT");
+}
+
+static void sk_timing_cb(lv_event_t* e) {
+  bool on = !Keyer_GetSKAutoTiming();
+  Settings_SetSKAutoTiming(on);
+  lv_label_set_text(skTimingLbl, on ? "AUTO  (adaptive)" : "WPM-BASED");
 }
 
 void UI_Keyer_Create(lv_obj_t* parent) {
@@ -148,6 +155,27 @@ void UI_Keyer_Create(lv_obj_t* parent) {
   lv_obj_set_style_text_color(swapLbl, lv_color_hex(0xFFB300), 0);
   lv_obj_center(swapLbl);
   lv_obj_add_event_cb(swapBtn, swap_cb, LV_EVENT_CLICKED, NULL);
+
+  // ── Row 7: STRAIGHT KEY TIMING label ──
+  lbl = lv_label_create(parent);
+  lv_label_set_text(lbl, "STRAIGHT KEY TIMING");
+  lv_obj_set_style_text_color(lbl, lv_color_hex(0x666666), 0);
+
+  // ── Row 8: SK timing toggle ──
+  // AUTO  = adaptive (learn operator's dit)
+  // WPM   = threshold derived from Keyer-tab WPM setting
+  lv_obj_t* skBtn = lv_button_create(parent);
+  lv_obj_set_size(skBtn, lv_pct(100), 28);
+  lv_obj_set_style_bg_color(skBtn, lv_color_hex(0x1A1A1A), 0);
+  lv_obj_set_style_border_color(skBtn, lv_color_hex(0x42A5F5), 0);
+  lv_obj_set_style_border_width(skBtn, 1, 0);
+  lv_obj_set_style_radius(skBtn, 6, 0);
+  lv_obj_set_style_shadow_width(skBtn, 0, 0);
+  skTimingLbl = lv_label_create(skBtn);
+  lv_label_set_text(skTimingLbl, Keyer_GetSKAutoTiming() ? "AUTO  (adaptive)" : "WPM-BASED");
+  lv_obj_set_style_text_color(skTimingLbl, lv_color_hex(0x42A5F5), 0);
+  lv_obj_center(skTimingLbl);
+  lv_obj_add_event_cb(skBtn, sk_timing_cb, LV_EVENT_CLICKED, NULL);
 }
 
 void UI_Keyer_Refresh(void) {

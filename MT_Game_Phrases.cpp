@@ -226,7 +226,9 @@ static int8_t   lastPlayedStage = -1; // callsign: last stage we auto-played aud
 //   PS_NONE   - normal play/input processing
 //   PS_ROUND  - round just completed, wait then check stage advance
 //   PS_BANNER - "NEW LETTER!/LEVEL UP!" shown, wait then load next stage
-enum PauseState { PS_NONE, PS_ROUND, PS_BANNER };
+//   PS_WRONG  - "TRY AGAIN" shown, input gated so the user's continued
+//               keying after a wrong letter can't bleed into the retry
+enum PauseState { PS_NONE, PS_ROUND, PS_BANNER, PS_WRONG };
 static PauseState pauseState = PS_NONE;
 static uint16_t   pauseCtr   = 0;
 
@@ -320,6 +322,7 @@ static void buildPlayback(const char* text) {
   }
   playBuf[p] = '\0';
   playPos = 0; playCtr = 0; playTone = false; playing = true; playDone = false;
+  Keyer_SetInputBlocked(true);
 }
 
 // ── Fisher-Yates shuffle of phrase indices ──
@@ -452,6 +455,7 @@ static void setupCallsignRound(void) {
       lv_obj_set_style_text_color(statusLbl, COL_DIT, 0);
     }
     playDone = true; playing = false;
+    Keyer_SetInputBlocked(false);
   }
 }
 
@@ -497,6 +501,7 @@ static void setupPhraseRound(void) {
       lv_obj_set_style_text_color(statusLbl, COL_DIT, 0);
     }
     playDone = true; playing = false;
+    Keyer_SetInputBlocked(false);
   }
 }
 
@@ -551,11 +556,17 @@ static void tick_cb(lv_timer_t* t) {
       lastChar = 0;
       userVisLen = 0; userVisPat[0] = '\0'; userVisDirty = true;
       setupNextTarget();
-    } else {  // PS_BANNER
+    } else if (s == PS_BANNER) {
       // Banner pause ended — NOW load the new stage (this was missing before)
       lastChar = 0;
       userVisLen = 0; userVisPat[0] = '\0'; userVisDirty = true;
       setupNextTarget();
+    } else {  // PS_WRONG
+      // Drop anything the user keyed while the "TRY AGAIN" banner was up,
+      // then let them try the retry from a clean slate.
+      lastChar = 0;
+      userVisLen = 0; userVisPat[0] = '\0'; userVisDirty = true;
+      Keyer_SetInputBlocked(false);
     }
     return;
   }
@@ -567,6 +578,7 @@ static void tick_cb(lv_timer_t* t) {
       // Playback finished — reset for user turn
       Sidetone_Off();
       playing = false; playDone = true;
+      Keyer_SetInputBlocked(false);
       tPos = 0;
       lastChar = 0;
       userVisLen = 0; userVisPat[0] = '\0'; userVisDirty = true;
@@ -666,6 +678,12 @@ static void tick_cb(lv_timer_t* t) {
         lv_label_set_text(statusLbl, "TRY AGAIN");
         lv_obj_set_style_text_color(statusLbl, COL_RED, 0);
       }
+      // Slam the gate while the banner is up so anything the user keys mid-
+      // realisation doesn't show up as letter[0] of the retry.
+      Keyer_SetInputBlocked(true);
+      lastChar = 0;
+      pauseCtr   = 50;     // ~500 ms at the 10 ms tick
+      pauseState = PS_WRONG;
     }
   }
 }
@@ -1135,6 +1153,7 @@ static void return_to_list_cb(lv_event_t* e) {
   active  = false;
   playing = false;
   Sidetone_Off();
+  Keyer_SetInputBlocked(false);
   // Restore default keyer callbacks so Home tab still decodes
   Keyer_OnChar([](char c) { UI_PushDecodedChar(c); });
   Keyer_OnElement([](bool s, bool d) { if (s) NeoPixel_KeyFlash(d); });
@@ -1156,6 +1175,7 @@ void Game_Phrases_Stop(void) {
   active = false;
   playing = false;
   Sidetone_Off();
+  Keyer_SetInputBlocked(false);
   // Restore default keyer handlers (matches Trainer/QSO)
   Keyer_OnChar([](char c) { UI_PushDecodedChar(c); });
   Keyer_OnElement([](bool s, bool d) { if (s) NeoPixel_KeyFlash(d); });

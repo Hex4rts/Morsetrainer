@@ -125,6 +125,7 @@ static void startPlayStep(void) {
   buildPlayStr(steps[curStep].incoming);
   playPos = 0; playCtr = ditMs() / 10; playTone = false;
   qphase = QP_PLAYING;
+  Keyer_SetInputBlocked(true);
 
   // Show based on difficulty
   if (qdiff == QD_EXPERT) {
@@ -158,6 +159,7 @@ static void tick_cb(lv_timer_t* t) {
       if (playPos >= plen) {
         Sidetone_Off();
         qphase = QP_WAITING; phaseStart = millis();
+        Keyer_SetInputBlocked(false);
         lv_label_set_text(statusLbl, "YOUR TURN!");
         lv_obj_set_style_text_color(statusLbl, lv_color_hex(0x00E676), 0);
 
@@ -208,6 +210,7 @@ static void tick_cb(lv_timer_t* t) {
             NeoPixel_Wrong();
           }
           char sc[12]; snprintf(sc, sizeof(sc), "%lu", qsoScore); lv_label_set_text(scoreLbl, sc);
+          Keyer_SetInputBlocked(true);
           qphase = QP_CHECK; phaseStart = millis();
         }
       }
@@ -218,6 +221,7 @@ static void tick_cb(lv_timer_t* t) {
       if (millis() - phaseStart > 30000) {
         lv_label_set_text(statusLbl, "TIMEOUT");
         lv_obj_set_style_text_color(statusLbl, lv_color_hex(0xFF3D00), 0);
+        Keyer_SetInputBlocked(true);
         qphase = QP_CHECK; phaseStart = millis();
       }
       break;
@@ -458,6 +462,7 @@ void Game_QSO_Start(void) { active = false; showMenu(); }
 void Game_QSO_Stop(void) {
   if (active && qsoScore > 0) Score_Submit("qso", qsoScore, qsoLevel);
   active = false; Sidetone_Off();
+  Keyer_SetInputBlocked(false);
   if (tickTmr) { lv_timer_del(tickTmr); tickTmr = NULL; }
   Keyer_OnChar([](char c) { UI_PushDecodedChar(c); });
   if (scr) { lv_obj_delete(scr); scr = NULL; }

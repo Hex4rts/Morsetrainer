@@ -51,3 +51,12 @@ uint8_t Morse_ElementCount(char c) {
   const char* code = Morse_Encode(c);
   return code ? strlen(code) : 0;
 }
+
+bool Morse_IsPrefix(const char* pattern) {
+  if (!pattern || !pattern[0]) return true;
+  size_t n = strlen(pattern);
+  for (const MorseEntry* e = morseTable; e->code; e++) {
+    if (strncmp(e->code, pattern, n) == 0) return true;
+  }
+  return false;
+}

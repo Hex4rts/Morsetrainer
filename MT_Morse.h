@@ -17,4 +17,9 @@ char Morse_Decode(const char* pattern);
 // Get the number of elements (dits + dahs) for a character
 uint8_t Morse_ElementCount(char c);
 
+// True if the given dit/dah pattern is a prefix of (or equal to) at least one
+// known Morse code. Used by the keyer to bail out of an in-progress character
+// as soon as random keying makes a valid decode impossible.
+bool Morse_IsPrefix(const char* pattern);
+
 #endif // MT_MORSE_H

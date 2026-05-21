@@ -18,6 +18,8 @@ typedef enum {
 static keyer_mode_t  mode       = KEYER_IAMBIC_B;
 static uint8_t       wpm        = 20;
 static bool          swapped    = false;
+static volatile bool input_blocked = false;
+static bool          sk_auto_timing = true;
 
 static keyer_state_t state      = KS_IDLE;
 static uint16_t      timer_ms   = 0;      // countdown for current state
@@ -102,12 +104,19 @@ static void keyUp(void) {
 static char displayPattern[PATTERN_MAX + 1] = {};
 static uint32_t displayPatternTime = 0;
 
+// True once the current in-progress pattern has gone past any valid Morse
+// prefix. Locked until the next character starts so a single stray element
+// can't poison the next character.
+static bool pattern_invalid = false;
+
 static void patternReset(void) {
   pat_len = 0;
   pattern[0] = '\0';
+  pattern_invalid = false;
 }
 
 static void patternAdd(char elem) {
+  if (pattern_invalid) return;  // already given up on this character
   if (pat_len < PATTERN_MAX) {
     pattern[pat_len++] = elem;
     pattern[pat_len] = '\0';
@@ -115,15 +124,29 @@ static void patternAdd(char elem) {
     memcpy(displayPattern, pattern, pat_len + 1);
     displayPatternTime = millis();
   }
+  // If the accumulated pattern can no longer match any Morse character,
+  // release it immediately: discard the buffer and flag the rest of this
+  // keying burst as garbage so the state machine returns to idle cleanly.
+  if (!Morse_IsPrefix(pattern)) {
+    pat_len = 0;
+    pattern[0] = '\0';
+    pattern_invalid = true;
+    displayPattern[0] = '?';
+    displayPattern[1] = '\0';
+    displayPatternTime = millis();
+  }
 }
 
 static void emitChar(void) {
-  if (pat_len == 0) return;
+  bool wasInvalid = pattern_invalid;
+  if (pat_len == 0 && !wasInvalid) return;
   // Save pattern for display before clearing
-  memcpy(displayPattern, pattern, pat_len + 1);
-  displayPatternTime = millis();
-  char c = Morse_Decode(pattern);
-  if (c && char_cb) char_cb(c);
+  if (pat_len > 0) {
+    memcpy(displayPattern, pattern, pat_len + 1);
+    displayPatternTime = millis();
+  }
+  char c = wasInvalid ? '\0' : Morse_Decode(pattern);
+  if (c && char_cb) char_cb(c);  // unknown patterns are dropped on the floor
   patternReset();
 }
 
@@ -131,6 +154,18 @@ static void emitChar(void) {
 //  State machine tick — called every 1 ms from esp_timer
 // ============================================================================
 static void keyer_tick_iambic(void) {
+  // When blocked, drop any in-flight element, kill the tone, and force the
+  // FSM back to idle. This prevents the keyer from sounding its own sidetone
+  // on top of the game's playback or pushing decoded chars from a paddle the
+  // user pressed mid-playback.
+  if (input_blocked) {
+    if (sending) keyUp();
+    state = KS_IDLE;
+    dit_latch = false;
+    dah_latch = false;
+    patternReset();
+    return;
+  }
   bool dit_now = readDit();
   bool dah_now = readDah();
 
@@ -293,21 +328,46 @@ static uint32_t sk_dit_avg = 80;
 float keyer_charGapMult = 3.0f;
 float keyer_wordGapMult = 7.0f;
 float keyer_ditDahMult  = 2.0f;
-#define SK_THRESHOLD()    ((uint32_t)(sk_dit_avg * keyer_ditDahMult))
-#define SK_CHAR_GAP()     ((uint32_t)(sk_dit_avg * keyer_charGapMult))
-#define SK_WORD_GAP()     ((uint32_t)(sk_dit_avg * keyer_wordGapMult))
+// Reference dit length for straight-key timing. In auto mode it's the
+// adaptive average we learn from the operator; in WPM mode it's the dit
+// length derived from the Keyer tab WPM setting.
+static inline uint32_t sk_ref_dit(void) {
+  return sk_auto_timing ? sk_dit_avg : (uint32_t)dit_ms;
+}
+#define SK_THRESHOLD()    ((uint32_t)(sk_ref_dit() * keyer_ditDahMult))
+#define SK_CHAR_GAP()     ((uint32_t)(sk_ref_dit() * keyer_charGapMult))
+#define SK_WORD_GAP()     ((uint32_t)(sk_ref_dit() * keyer_wordGapMult))
+
+// Straight-key FSM scratch — file-scope so the input-blocked branch can reset
+// them and avoid replaying a stale element after the block lifts.
+static bool     sk_was_down  = false;
+static uint32_t sk_up_time   = 0;
+static uint32_t sk_down_time = 0;
 
 static void keyer_tick_straight(void) {
+  // While blocked, kill any active tone, drop the in-progress pattern, and
+  // skip classification entirely so no decoded char or LED flash leaks
+  // through and the device never keys its sidetone on top of game playback.
+  if (input_blocked) {
+    if (sending) keyUp();
+    patternReset();
+    sk_active = false;
+    sk_held_ms = 0;
+    sk_was_down  = false;
+    sk_up_time   = 0;
+    sk_down_time = 0;
+    return;
+  }
   bool key_down = readDit() || readDah();
 
-  static bool    was_down   = false;
-  static uint32_t up_time   = 0;
-  static uint32_t down_time = 0;
+  bool&     was_down  = sk_was_down;
+  uint32_t& up_time   = sk_up_time;
+  uint32_t& down_time = sk_down_time;
 
   if (key_down) {
     if (!was_down) {
       keyDown(false);
-      if (up_time >= SK_CHAR_GAP() && pat_len > 0) {
+      if (up_time >= SK_CHAR_GAP() && (pat_len > 0 || pattern_invalid)) {
         emitChar();
       }
       down_time = 0;
@@ -342,7 +402,7 @@ static void keyer_tick_straight(void) {
       up_time = 0;
     }
     up_time++;
-    if (up_time == SK_CHAR_GAP() && pat_len > 0) {
+    if (up_time == SK_CHAR_GAP() && (pat_len > 0 || pattern_invalid)) {
       emitChar();
     }
     if (!space_sent && up_time == SK_WORD_GAP()) {
@@ -411,6 +471,36 @@ uint8_t Keyer_GetWPM(void) { return wpm; }
 
 void Keyer_SetSwap(bool s) { swapped = s; }
 bool Keyer_GetSwap(void)   { return swapped; }
+
+void Keyer_SetSKAutoTiming(bool on) { sk_auto_timing = on; }
+bool Keyer_GetSKAutoTiming(void)    { return sk_auto_timing; }
+
+void Keyer_SetInputBlocked(bool blocked) {
+  input_blocked = blocked;
+  if (blocked) {
+    // Stop any tone immediately — don't wait for the next 1 ms ISR tick.
+    if (sending) { sending = false; Sidetone_Off(); }
+  }
+}
+bool Keyer_GetInputBlocked(void) { return input_blocked; }
+
+void Keyer_FlushInput(void) {
+  // Wipe whatever the user was mid-keying — pattern buffer, FSM, SK scratch.
+  // The 1 ms ISR may fire in the middle of this; the worst case is that one
+  // element completes after the flush, which is acceptable: the goal is to
+  // make damn sure the *previous* attempt's residue is gone.
+  patternReset();
+  state = KS_IDLE;
+  dit_latch = false;
+  dah_latch = false;
+  if (sending) { sending = false; Sidetone_Off(); }
+  sk_was_down  = false;
+  sk_up_time   = 0;
+  sk_down_time = 0;
+  sk_active    = false;
+  sk_held_ms   = 0;
+  displayPattern[0] = '\0';
+}
 
 void Keyer_OnChar(keyer_char_cb_t cb)       { char_cb = cb; }
 void Keyer_OnElement(keyer_element_cb_t cb)  { element_cb = cb; }

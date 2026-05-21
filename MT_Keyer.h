@@ -35,6 +35,24 @@ uint8_t  Keyer_GetWPM(void);
 void Keyer_SetSwap(bool swap);
 bool Keyer_GetSwap(void);
 
+// Straight-key timing mode
+//   true  = adaptive (learns operator dit length, the original behavior)
+//   false = WPM-based (threshold derived from the Keyer tab WPM setting)
+void Keyer_SetSKAutoTiming(bool on);
+bool Keyer_GetSKAutoTiming(void);
+
+// Input gate — when true the keyer ignores paddles and the straight key.
+// No sidetone, no LED flash, no decoded characters. Used by games to suppress
+// user input while the device is playing back morse for the user to copy.
+void Keyer_SetInputBlocked(bool blocked);
+bool Keyer_GetInputBlocked(void);
+
+// Drop any in-progress pattern / straight-key element without entering the
+// blocked state. Use after judging a wrong answer so the next character the
+// keyer emits is unambiguously the start of the retry, not the tail of the
+// previous attempt.
+void Keyer_FlushInput(void);
+
 // Register callbacks
 void Keyer_OnChar(keyer_char_cb_t cb);
 void Keyer_OnElement(keyer_element_cb_t cb);

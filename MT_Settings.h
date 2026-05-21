@@ -12,6 +12,7 @@ typedef struct {
   uint16_t      sidetoneFreq;     // 200–1200 Hz
   keyer_mode_t  keyerMode;
   bool          paddleSwap;
+  bool          skAutoTiming;    // straight key: true=adaptive, false=WPM-based
   uint8_t       backlight;        // 0–100
   neo_mode_t    ledMode;
   uint8_t       ledBrightness;    // 0–255 (key flash brightness)
@@ -42,6 +43,7 @@ void Settings_SetVolume(uint8_t vol);
 void Settings_SetSidetoneFreq(uint16_t hz);
 void Settings_SetKeyerMode(keyer_mode_t m);
 void Settings_SetPaddleSwap(bool swap);
+void Settings_SetSKAutoTiming(bool on);
 void Settings_SetBacklight(uint8_t bl);
 void Settings_SetLEDMode(neo_mode_t m);
 void Settings_SetLEDBrightness(uint8_t b);

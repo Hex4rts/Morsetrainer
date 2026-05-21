@@ -16,6 +16,7 @@ static const mt_settings_t defaults = {
   .sidetoneFreq = 700,
   .keyerMode    = KEYER_IAMBIC_B,
   .paddleSwap   = false,
+  .skAutoTiming = true,
   .backlight    = 50,
   .ledMode      = NEO_KEY_FLASH,
   .ledBrightness= 40,
@@ -41,6 +42,7 @@ static void pushToHardware(void) {
   Keyer_SetWPM(cfg.wpm);
   Keyer_SetMode(cfg.keyerMode);
   Keyer_SetSwap(cfg.paddleSwap);
+  Keyer_SetSKAutoTiming(cfg.skAutoTiming);
   Sidetone_SetFreq(cfg.sidetoneFreq);
   Sidetone_SetVolume(cfg.volume);
   NeoPixel_SetMode(cfg.ledMode);
@@ -63,6 +65,7 @@ static void saveToNVS(void) {
   prefs.putUShort("freq",     cfg.sidetoneFreq);
   prefs.putUChar("kmode",     (uint8_t)cfg.keyerMode);
   prefs.putBool("pswap",      cfg.paddleSwap);
+  prefs.putBool("skauto",     cfg.skAutoTiming);
   prefs.putUChar("bl",        cfg.backlight);
   prefs.putUChar("ledm",      (uint8_t)cfg.ledMode);
   prefs.putUChar("ledb",      cfg.ledBrightness);
@@ -85,6 +88,7 @@ static bool loadFromNVS(void) {
   cfg.sidetoneFreq  = prefs.getUShort("freq",  defaults.sidetoneFreq);
   cfg.keyerMode     = (keyer_mode_t)prefs.getUChar("kmode", defaults.keyerMode);
   cfg.paddleSwap    = prefs.getBool("pswap",   defaults.paddleSwap);
+  cfg.skAutoTiming  = prefs.getBool("skauto",  defaults.skAutoTiming);
   cfg.backlight     = prefs.getUChar("bl",     defaults.backlight);
   cfg.ledMode       = (neo_mode_t)prefs.getUChar("ledm", defaults.ledMode);
   cfg.ledBrightness = prefs.getUChar("ledb",   defaults.ledBrightness);
@@ -169,6 +173,12 @@ void Settings_SetKeyerMode(keyer_mode_t m) {
 void Settings_SetPaddleSwap(bool s) {
   cfg.paddleSwap = s;
   Keyer_SetSwap(s);
+  markDirty();
+}
+
+void Settings_SetSKAutoTiming(bool on) {
+  cfg.skAutoTiming = on;
+  Keyer_SetSKAutoTiming(on);
   markDirty();
 }
 
@@ -270,6 +280,7 @@ bool Settings_BackupToSD(void) {
   f.printf("freq=%d\n",      cfg.sidetoneFreq);
   f.printf("kmode=%d\n",     (int)cfg.keyerMode);
   f.printf("pswap=%d\n",     cfg.paddleSwap ? 1 : 0);
+  f.printf("skauto=%d\n",    cfg.skAutoTiming ? 1 : 0);
   f.printf("bl=%d\n",        cfg.backlight);
   f.printf("ledm=%d\n",      (int)cfg.ledMode);
   f.printf("ledb=%d\n",      cfg.ledBrightness);
@@ -300,6 +311,7 @@ bool Settings_RestoreFromSD(void) {
     else if (key == "freq")  cfg.sidetoneFreq = val.toInt();
     else if (key == "kmode") cfg.keyerMode    = (keyer_mode_t)val.toInt();
     else if (key == "pswap") cfg.paddleSwap   = (val.toInt() != 0);
+    else if (key == "skauto") cfg.skAutoTiming = (val.toInt() != 0);
     else if (key == "bl")    cfg.backlight    = val.toInt();
     else if (key == "ledm")  cfg.ledMode      = (neo_mode_t)val.toInt();
     else if (key == "ledb")  cfg.ledBrightness= val.toInt();
