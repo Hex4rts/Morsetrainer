@@ -24,6 +24,7 @@ typedef struct {
   lv_obj_t* hintLbl;  // morse hint (beginner) or morse-only (expert)
   char ch;
   int16_t x, y;
+  float   fy;         // true Y in float — accumulates sub-pixel fall speed
   bool active;
 } fl_letter_t;
 
@@ -53,6 +54,7 @@ static void spawn(void) {
     letters[i].ch = 'A' + random(0, 26);
     letters[i].x  = random(10, FL_W - 40);
     letters[i].y  = -20;
+    letters[i].fy = -20.0f;
     letters[i].active = true;
 
     const char* code = Morse_Encode(letters[i].ch);
@@ -79,6 +81,7 @@ static void spawn(void) {
       // Beginner: show morse hint under letter
       lv_label_set_text(letters[i].hintLbl, code);
       lv_obj_set_style_text_color(letters[i].hintLbl, lv_color_hex(0x42A5F5), 0);
+      lv_obj_set_pos(letters[i].hintLbl, letters[i].x, letters[i].y + 26);
       lv_obj_clear_flag(letters[i].hintLbl, LV_OBJ_FLAG_HIDDEN);
     } else {
       // Expert: no hint
@@ -130,12 +133,15 @@ static void showGameOver(void) {
 static void tick_cb(lv_timer_t* t) {
   if (!active) return;
   char input = lastChar; lastChar = 0;
-  float speed = 1.0f + (level - 1) * 0.4f;
+  // Beginner ramps gently so it stays learnable; expert ramps hard.
+  float speed = (fldiff == FL_BGN) ? (0.6f + (level - 1) * 0.12f)
+                                   : (1.0f + (level - 1) * 0.35f);
 
   // Phase 1: move all letters, check for landing
   for (int i = 0; i < FL_MAX; i++) {
     if (!letters[i].active) continue;
-    letters[i].y += (int16_t)speed;
+    letters[i].fy += speed;                 // accumulate full speed, no truncation
+    letters[i].y   = (int16_t)letters[i].fy;
     lv_obj_set_pos(letters[i].label, letters[i].x, letters[i].y);
     if (letters[i].hintLbl && !lv_obj_has_flag(letters[i].hintLbl, LV_OBJ_FLAG_HIDDEN))
       lv_obj_set_pos(letters[i].hintLbl, letters[i].x, letters[i].y + 26);
@@ -144,7 +150,7 @@ static void tick_cb(lv_timer_t* t) {
       letters[i].active = false;
       lv_obj_add_flag(letters[i].label, LV_OBJ_FLAG_HIDDEN);
       if (letters[i].hintLbl) lv_obj_add_flag(letters[i].hintLbl, LV_OBJ_FLAG_HIDDEN);
-      lives--;
+      if (lives > 0) lives--;   // guard: two letters can land in one tick
       NeoPixel_Wrong();
     }
   }
@@ -186,8 +192,14 @@ static void tick_cb(lv_timer_t* t) {
 static void spawn_cb(lv_timer_t* t) {
   if (!active) return;
   spawn();
-  uint32_t interval = 2000 - (level - 1) * 150;
-  if (interval < 600) interval = 600;
+  uint32_t interval;
+  if (fldiff == FL_BGN) {
+    interval = 2800 - (level - 1) * 120;   // beginner: fewer letters at once
+    if (interval < 1200) interval = 1200;
+  } else {
+    interval = 2000 - (level - 1) * 150;
+    if (interval < 600) interval = 600;
+  }
   lv_timer_set_period(spawnTmr, interval);
 }
 
@@ -315,11 +327,15 @@ static void startFL(FLDiff d) {
 
   Keyer_OnChar(game_char);
   tickTmr  = lv_timer_create(tick_cb,  FL_TICK_MS, NULL);
-  spawnTmr = lv_timer_create(spawn_cb, 2000, NULL);
+  spawnTmr = lv_timer_create(spawn_cb, (d == FL_BGN) ? 2800 : 2000, NULL);
+  spawn();  // first letter right away — don't leave the screen empty for 2s
   lv_screen_load(scr);
 }
 
 void Game_FallingLetters_Stop(void) {
+  // Save on manual EXIT too — showGameOver() handles the natural lives-out loss
+  // (and clears `active`), so this only fires when the player quits mid-run.
+  if (active && score > 0) Score_Submit("falling", score, level);
   active = false;
   if (tickTmr)  { lv_timer_del(tickTmr);  tickTmr = NULL; }
   if (spawnTmr) { lv_timer_del(spawnTmr); spawnTmr = NULL; }

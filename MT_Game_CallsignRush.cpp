@@ -99,23 +99,33 @@ static void drawCallBars(int16_t baseY) {
     const char* code = Morse_Encode(toupper(target[i]));
     if (code) strcat(pat, code);
   }
-  // Draw bars
-  int16_t x = (320 - strlen(pat) * 6) / 2;  // rough center
+  // Measure the natural width first (dits, dahs, gaps) so we can center it and
+  // scale it down if a long callsign would otherwise run off the screen edge.
+  float totalW = 0;
+  for (int i = 0; pat[i]; i++) {
+    if (pat[i] == ' ') totalW += CR_LETTER_GAP;
+    else totalW += (pat[i] == '-' ? CR_BAR_DAH_W : CR_BAR_DIT_W) + CR_BAR_GAP;
+  }
+  const float availW = 320 - 8;  // 4px margin each side
+  float scale = (totalW > availW && totalW > 0) ? availW / totalW : 1.0f;
+
+  float x = (320 - totalW * scale) / 2.0f;
   if (x < 4) x = 4;
   int idx = 0;
   for (int i = 0; pat[i] && idx < CR_MAX_BARS; i++) {
-    if (pat[i] == ' ') { x += CR_LETTER_GAP; continue; }
+    if (pat[i] == ' ') { x += CR_LETTER_GAP * scale; continue; }
     bool dah = (pat[i] == '-');
-    int16_t w = dah ? CR_BAR_DAH_W : CR_BAR_DIT_W;
+    int16_t w = (int16_t)((dah ? CR_BAR_DAH_W : CR_BAR_DIT_W) * scale);
+    if (w < 2) w = 2;
     if (barObjs[idx]) {
       lv_obj_set_size(barObjs[idx], w, CR_BAR_H);
-      lv_obj_set_pos(barObjs[idx], x, baseY);
+      lv_obj_set_pos(barObjs[idx], (int16_t)x, baseY);
       lv_obj_set_style_bg_color(barObjs[idx], dah ? lv_color_hex(0xFFB300) : lv_color_hex(0x42A5F5), 0);
       lv_obj_set_style_bg_opa(barObjs[idx], LV_OPA_COVER, 0);
       lv_obj_set_style_radius(barObjs[idx], 2, 0);
       lv_obj_clear_flag(barObjs[idx], LV_OBJ_FLAG_HIDDEN);
     }
-    x += w + CR_BAR_GAP;
+    x += w + CR_BAR_GAP * scale;
     idx++;
   }
 }
@@ -156,7 +166,7 @@ static void newRound(void) {
     if (statusLbl) lv_label_set_text(statusLbl, "");
     // Beginner: show visual dit/dah bars
     if (crdiff == CR_BGN) {
-      drawCallBars(130);  // below the callsign text
+      drawCallBars(190);  // low on screen, clear of the input label
     } else {
       clearCallBars();
     }
@@ -186,8 +196,8 @@ static void showGameOver(void) {
   lv_obj_set_style_border_color(overPanel, lv_color_hex(0xFF3D00), 0);
   lv_obj_set_style_border_width(overPanel, 2, 0);
 
-  char buf[48];
-  snprintf(buf, sizeof(buf), "COMMS LOST\nSCORE: %lu\nROUNDS: %d", score, roundNum - 1);
+  char buf[64];
+  snprintf(buf, sizeof(buf), "COMMS LOST\nSCORE: %lu  RND: %d\nMISSED: %s", score, roundNum - 1, target);
   lv_obj_t* lbl = lv_label_create(overPanel);
   lv_label_set_text(lbl, buf);
   lv_obj_set_style_text_color(lbl, lv_color_hex(0xFF3D00), 0);
@@ -219,10 +229,11 @@ static void tick_cb(lv_timer_t* t) {
       if (playPos >= plen) {
         Sidetone_Off(); playing = false;
         Keyer_SetInputBlocked(false);
-        // Expert: reveal callsign after playback
-        if (crdiff == CR_EXP) {
-          lv_label_set_text(callLbl, target);
-          if (statusLbl) lv_label_set_text(statusLbl, "");
+        // Playback finished — now the player sends. Expert keeps "???" (must
+        // copy by ear); the answer is only revealed on a miss / game over.
+        if (statusLbl) {
+          lv_label_set_text(statusLbl, "SEND IT");
+          lv_obj_set_style_text_color(statusLbl, lv_color_hex(0x00E676), 0);
         }
       } else {
         char e = playBuf[playPos];
@@ -237,17 +248,22 @@ static void tick_cb(lv_timer_t* t) {
     }
   }
 
-  // User input
+  // User input — ignored until playback has finished. Each decoded character
+  // is matched immediately against the next expected letter so a wrong element
+  // gives instant feedback instead of waiting for the whole callsign. Word-gap
+  // spaces the keyer emits between letters are skipped.
   char c = lastChar; lastChar = 0;
-  if (c) {
+  if (c && !playing) {
     c = toupper(c);
-    if (inputPos < CR_MAX_CALL) {
-      inputBuf[inputPos++] = c;
-      inputBuf[inputPos] = '\0';
-      lv_label_set_text(inputLbl, inputBuf);
+    if (c != ' ') {
+      uint8_t tlen = strlen(target);
+      if (c == target[inputPos]) {
+        inputBuf[inputPos++] = c;
+        inputBuf[inputPos] = '\0';
+        lv_label_set_text(inputLbl, inputBuf);
 
-      if (inputPos == strlen(target)) {
-        if (strcmp(inputBuf, target) == 0) {
+        if (inputPos == tlen) {
+          // Full callsign copied correctly
           score += (crdiff == CR_BGN) ? 100 : (100 + timeLeft / 100);
           NeoPixel_Correct();
           char buf[16]; snprintf(buf, sizeof(buf), "%lu", score);
@@ -255,24 +271,36 @@ static void tick_cb(lv_timer_t* t) {
           Sidetone_Off(); playing = false;
           newRound();
           return;
+        }
+      } else {
+        NeoPixel_Wrong();
+        Keyer_FlushInput();  // drop the half-built element so the retry is clean
+        if (crdiff == CR_BGN) {
+          // Learning mode: no timer, no pressure. Keep the letters already
+          // copied correctly and just nudge them to retry the current one.
+          if (statusLbl) {
+            lv_label_set_text(statusLbl, "TRY AGAIN");
+            lv_obj_set_style_text_color(statusLbl, lv_color_hex(0xFF3D00), 0);
+          }
         } else {
-          NeoPixel_Wrong();
+          // Timed modes: reset the attempt, reveal the answer, apply a penalty.
           inputPos = 0; inputBuf[0] = '\0';
           lv_label_set_text(inputLbl, "_");
-          // Throw away whatever the user was already keying for the "next"
-          // letter — the game has snapped them back to inputBuf[0] and we
-          // don't want a half-built dit/dah being treated as that retry's
-          // first element. lastChar is already cleared at the top of tick.
-          Keyer_FlushInput();
-          if (crdiff != CR_BGN) {
-            if (timeLeft > 2000) timeLeft -= 2000; else timeLeft = 0;
+          lv_label_set_text(callLbl, target);
+          if (statusLbl) {
+            lv_label_set_text(statusLbl, "MISS");
+            lv_obj_set_style_text_color(statusLbl, lv_color_hex(0xFF3D00), 0);
           }
+          if (timeLeft > 2000) timeLeft -= 2000; else timeLeft = 0;
         }
       }
     }
   }
 
-  if (crdiff != CR_BGN) {
+  // The clock only runs while the player is actually sending — never during
+  // the device's own morse playback, otherwise expert/intermediate bleed away
+  // seconds they have no chance to act on.
+  if (crdiff != CR_BGN && !playing) {
     if (timeLeft > CR_TICK_MS) timeLeft -= CR_TICK_MS; else timeLeft = 0;
     lv_bar_set_value(timerBar, timeLeft / CR_TICK_MS, LV_ANIM_ON);
     if (timeLeft == 0) showGameOver();
@@ -436,6 +464,10 @@ static void startCR(CRDiff d) {
 }
 
 void Game_CallsignRush_Stop(void) {
+  // Save the run on the way out too. showGameOver() already submitted (and
+  // cleared `active`) for a timed loss; this covers a manual EXIT and Beginner,
+  // which has no timer and so never reaches game over.
+  if (active && score > 0) Score_Submit("callrush", score, roundNum > 0 ? roundNum - 1 : 0);
   active = false;
   Sidetone_Off();
   Keyer_SetInputBlocked(false);

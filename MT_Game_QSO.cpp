@@ -71,6 +71,18 @@ static volatile uint8_t cbW = 0, cbR = 0;
 static void qso_char(char c) { cbuf[cbW % CBUF] = c; cbW++; UI_PushDecodedChar(c); }
 static char popC(void) { if (cbR == cbW) return 0; return cbuf[cbR++ % CBUF]; }
 
+// Copy `in` to `out` with every space removed and letters upper-cased. Used to
+// compare the operator's response against the expected exchange WITHOUT
+// requiring them to nail exact word-gap timing — only the characters and their
+// order matter, which is what actually makes the game playable.
+static void squashSpaces(const char* in, char* out, size_t outsz) {
+  size_t j = 0;
+  for (size_t i = 0; in[i] && j + 1 < outsz; i++) {
+    if (in[i] != ' ') out[j++] = toupper(in[i]);
+  }
+  out[j] = '\0';
+}
+
 static void genCall(char* buf) {
   const char* p = qsoPfx[random(0, NUM_PFX)];
   int d = random(0, 10);
@@ -182,21 +194,24 @@ static void tick_cb(lv_timer_t* t) {
     case QP_WAITING: {
       char c = popC();
       if (c) {
+        // Keep the on-screen input readable (collapse runs of spaces to one),
+        // but guard the buffer so a long wrong answer can never overflow it.
         if (c == ' ') {
-          if (userPos > 0 && userBuf[userPos-1] != ' ') { userBuf[userPos++] = ' '; userBuf[userPos] = '\0'; }
-        } else {
+          if (userPos > 0 && userBuf[userPos-1] != ' ' && userPos < MAX_MSG) { userBuf[userPos++] = ' '; userBuf[userPos] = '\0'; }
+        } else if (userPos < MAX_MSG) {
           userBuf[userPos++] = toupper(c); userBuf[userPos] = '\0';
         }
         lv_label_set_text(userLbl, userBuf);
 
-        // Trim and compare
-        char expTrim[MAX_MSG+1]; strncpy(expTrim, steps[curStep].expected, MAX_MSG);
-        int el = strlen(expTrim); while (el > 0 && expTrim[el-1] == ' ') expTrim[--el] = '\0';
-        int ul = userPos; while (ul > 0 && userBuf[ul-1] == ' ') ul--;
+        // Compare on characters only — spaces in either side are ignored, so
+        // the operator doesn't have to reproduce exact word-gap timing.
+        char expClean[MAX_MSG+1]; squashSpaces(steps[curStep].expected, expClean, sizeof(expClean));
+        char usrClean[MAX_MSG+1]; squashSpaces(userBuf, usrClean, sizeof(usrClean));
+        int el = strlen(expClean);
+        int ul = strlen(usrClean);
 
-        if (ul >= el) {
-          char userTrim[MAX_MSG+1]; strncpy(userTrim, userBuf, ul); userTrim[ul] = '\0';
-          bool ok = (strcmp(userTrim, expTrim) == 0);
+        if (ul >= el && el > 0) {
+          bool ok = (strcmp(usrClean, expClean) == 0);
           if (ok) {
             qsoScore += 50;
             lv_label_set_text(statusLbl, "GOOD COPY!");
@@ -204,7 +219,7 @@ static void tick_cb(lv_timer_t* t) {
             NeoPixel_Correct();
           } else {
             char fb[MAX_MSG+16];
-            snprintf(fb, sizeof(fb), "EXPECTED: %s", expTrim);
+            snprintf(fb, sizeof(fb), "EXPECTED: %s", steps[curStep].expected);
             lv_label_set_text(statusLbl, fb);
             lv_obj_set_style_text_color(statusLbl, lv_color_hex(0xFF3D00), 0);
             NeoPixel_Wrong();
@@ -297,9 +312,7 @@ static void showMenu(void) {
   lv_label_set_text(t, "QSO SIMULATOR");
   lv_obj_set_style_text_color(t, lv_color_hex(0x42A5F5), 0);
 #if LV_FONT_MONTSERRAT_24
-#if LV_FONT_MONTSERRAT_24
   lv_obj_set_style_text_font(t, &lv_font_montserrat_24, 0);
-#endif
 #endif
   lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 4);
 
