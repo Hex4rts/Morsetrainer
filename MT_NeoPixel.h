@@ -13,6 +13,23 @@ typedef enum {
   NEO_STARFIELD,       // random pixels flash
   NEO_CHASE,           // color chases around strip
   NEO_RAINBOW,         // continuous rainbow cycle
+  NEO_COMET,           // bright head with a long fading tail
+  NEO_SCANNER,         // Larson/Cylon dot bouncing back and forth
+  NEO_FIRE,            // warm flickering flame
+  NEO_TWINKLE,         // random multicolor sparkles fading out
+  NEO_AURORA,          // slow shifting green/blue gradient
+  NEO_THEATER,         // marquee/theater chase
+  NEO_WIPE,            // color wipe fill then unfill
+  NEO_PULSE,           // heartbeat double-thump
+  NEO_WAVE,            // travelling sine brightness wave
+  NEO_PLASMA,          // multi-sine shifting hue plasma
+  NEO_POLICE,          // alternating red/blue strobe
+  NEO_LIGHTNING,       // dark storm with random blue-white strikes
+  NEO_MATRIX,          // green "digital rain" cascading with trails
+  NEO_MOOD,            // whole strip one hue, slowly morphing
+  NEO_LAVA,            // slow warm lava-lamp blobs
+  NEO_FIREFLY,         // sparse soft warm glows blinking in and out
+  NEO_METEOR,          // meteor sweeping with a sparkly decaying trail
   NEO_MODE_COUNT
 } neo_mode_t;
 

@@ -2,6 +2,7 @@
 #include "MT_Pins.h"
 #include "MT_Keyer.h"
 #include <Adafruit_NeoPixel.h>
+#include <math.h>
 
 // ============================================================================
 //  NeoPixel strip instance
@@ -57,7 +58,10 @@ void NeoPixel_SetMode(neo_mode_t m) {
 neo_mode_t NeoPixel_GetMode(void) { return currentMode; }
 
 const char* NeoPixel_ModeName(neo_mode_t m) {
-  static const char* names[] = {"Off", "Key Flash", "WPM Meter", "Steady", "Breathe", "Starfield", "Chase", "Rainbow"};
+  static const char* names[] = {"Off", "Key Flash", "WPM Meter", "Steady", "Breathe", "Starfield", "Chase", "Rainbow",
+                                "Comet", "Scanner", "Fire", "Twinkle", "Aurora",
+                                "Theater", "Wipe", "Pulse", "Wave", "Plasma", "Police",
+                                "Lightning", "Matrix", "Mood", "Lava", "Firefly", "Meteor"};
   return (m < NEO_MODE_COUNT) ? names[m] : "?";
 }
 
@@ -239,6 +243,251 @@ static void renderRainbowMode(void) {
   }
 }
 
+// ── Comet: bright head with a long fading tail circling the strip ──
+static void renderComet(void) {
+  const int TAIL = 8;
+  uint8_t ar = (ambientColor >> 16) & 0xFF;
+  uint8_t ag = (ambientColor >> 8)  & 0xFF;
+  uint8_t ab = (ambientColor)       & 0xFF;
+  int head = (millis() / 45) % neo_count;
+  for (int i = 0; i < neo_count; i++) {
+    int dist = (head - i + neo_count) % neo_count;  // pixels behind the head
+    if (dist < TAIL) {
+      float f = 1.0f - (float)dist / TAIL;
+      f *= f;  // quadratic falloff for a sharper head
+      strip.setPixelColor(i, (uint8_t)(ar * f), (uint8_t)(ag * f), (uint8_t)(ab * f));
+    }
+  }
+}
+
+// ── Scanner: a Larson/Cylon dot sweeping back and forth with a short tail ──
+static void renderScanner(void) {
+  const int TAIL = 3;
+  uint8_t ar = (ambientColor >> 16) & 0xFF;
+  uint8_t ag = (ambientColor >> 8)  & 0xFF;
+  uint8_t ab = (ambientColor)       & 0xFF;
+  uint32_t span = (neo_count > 1) ? (uint32_t)(neo_count - 1) * 2 : 1;
+  uint32_t t = (millis() / 55) % span;
+  int head = (t < (uint32_t)neo_count) ? (int)t : (int)(span - t);  // bounce 0..n-1..0
+  for (int i = 0; i < neo_count; i++) {
+    int dist = abs(i - head);
+    if (dist <= TAIL) {
+      float f = 1.0f - (float)dist / (TAIL + 1);
+      strip.setPixelColor(i, (uint8_t)(ar * f), (uint8_t)(ag * f), (uint8_t)(ab * f));
+    }
+  }
+}
+
+// ── Fire: per-pixel heat that cools and randomly sparks (warm palette) ──
+static void renderFire(void) {
+  static uint8_t heat[NEOPIXEL_COUNT] = {};
+  for (int i = 0; i < neo_count; i++) {
+    int cool = random(0, 26);
+    heat[i] = (heat[i] > cool) ? heat[i] - cool : 0;
+    if (random(0, 4) == 0) {
+      int h = heat[i] + random(60, 160);
+      heat[i] = (h > 255) ? 255 : h;
+    }
+    uint8_t h = heat[i];
+    // Embers stay deep red; hottest spots warm to orange — green is kept to a
+    // small fraction of red so it never drifts into yellow.
+    uint8_t r = h;
+    uint8_t g = (uint8_t)(((uint16_t)h * 65) / 255);  // peaks ~65 = orange
+    strip.setPixelColor(i, r, g, 0);
+  }
+}
+
+// ── Twinkle: random pixels spark in random hues, then fade out ──
+static void renderTwinkle(void) {
+  static uint8_t  bri[NEOPIXEL_COUNT] = {};
+  static uint16_t hue[NEOPIXEL_COUNT] = {};
+  for (int i = 0; i < neo_count; i++)
+    bri[i] = (bri[i] > 6) ? bri[i] - 6 : 0;
+  if (random(0, 2) == 0) {
+    int idx = random(0, neo_count);
+    bri[idx] = 200 + random(0, 56);
+    hue[idx] = random(0, 65536);
+  }
+  for (int i = 0; i < neo_count; i++) {
+    if (bri[i] > 0)
+      strip.setPixelColor(i, strip.gamma32(strip.ColorHSV(hue[i], 200, bri[i])));
+  }
+}
+
+// ── Aurora: slow, low-motion green/blue/purple gradient that drifts ──
+static void renderAurora(void) {
+  float t = millis() / 1000.0f;
+  for (int i = 0; i < neo_count; i++) {
+    // Hue oscillates within the green→cyan→blue band (~26k–46k of 65536).
+    float wave = sinf(i * 0.55f + t * 0.6f);
+    uint16_t h = (uint16_t)(36000 + wave * 9000);
+    uint8_t  v = (uint8_t)(120 + sinf(i * 0.35f - t * 0.4f) * 60);
+    strip.setPixelColor(i, strip.gamma32(strip.ColorHSV(h, 255, v)));
+  }
+}
+
+// ── Theater: classic marquee — every 3rd pixel lit, pattern marches along ──
+static void renderTheater(void) {
+  uint8_t ar = (ambientColor >> 16) & 0xFF;
+  uint8_t ag = (ambientColor >> 8)  & 0xFF;
+  uint8_t ab = (ambientColor)       & 0xFF;
+  int step = (millis() / 120) % 3;
+  for (int i = 0; i < neo_count; i++)
+    if (i % 3 == step) strip.setPixelColor(i, ar, ag, ab);
+}
+
+// ── Wipe: fill the strip one pixel at a time, then unfill ──
+static void renderWipe(void) {
+  uint8_t ar = (ambientColor >> 16) & 0xFF;
+  uint8_t ag = (ambientColor >> 8)  & 0xFF;
+  uint8_t ab = (ambientColor)       & 0xFF;
+  uint32_t span = (neo_count > 0) ? (uint32_t)neo_count * 2 : 1;
+  uint32_t t = (millis() / 55) % span;
+  int lit = (t < (uint32_t)neo_count) ? (int)t : (int)(span - t);  // grow then shrink
+  for (int i = 0; i < lit && i < neo_count; i++)
+    strip.setPixelColor(i, ar, ag, ab);
+}
+
+// ── Pulse: heartbeat — two quick thumps then a rest ──
+static void renderPulse(void) {
+  uint32_t t = millis() % 1300;
+  float b = 0.0f;
+  if      (t < 120) b = t / 120.0f;
+  else if (t < 240) b = 1.0f - (t - 120) / 120.0f;
+  else if (t < 360) b = (t - 240) / 120.0f * 0.7f;
+  else if (t < 480) b = 0.7f - (t - 360) / 120.0f * 0.7f;
+  // 480–1300ms: dark rest
+  uint8_t r = (uint8_t)(((ambientColor >> 16) & 0xFF) * b);
+  uint8_t g = (uint8_t)(((ambientColor >> 8)  & 0xFF) * b);
+  uint8_t bl = (uint8_t)(((ambientColor)      & 0xFF) * b);
+  for (int i = 0; i < neo_count; i++) strip.setPixelColor(i, r, g, bl);
+}
+
+// ── Wave: a sine brightness wave in ambient color travels along the strip ──
+static void renderWave(void) {
+  float t = millis() / 180.0f;
+  uint8_t ar = (ambientColor >> 16) & 0xFF;
+  uint8_t ag = (ambientColor >> 8)  & 0xFF;
+  uint8_t ab = (ambientColor)       & 0xFF;
+  for (int i = 0; i < neo_count; i++) {
+    float s = (sinf(i * 0.6f - t) + 1.0f) * 0.5f;  // 0..1
+    strip.setPixelColor(i, (uint8_t)(ar * s), (uint8_t)(ag * s), (uint8_t)(ab * s));
+  }
+}
+
+// ── Plasma: overlapping sines drive a slowly shifting full-spectrum hue ──
+static void renderPlasma(void) {
+  float t = millis() / 1000.0f;
+  for (int i = 0; i < neo_count; i++) {
+    float v = sinf(i * 0.30f + t) + sinf(i * 0.17f - t * 0.7f);  // -2..2
+    uint16_t hue = (uint16_t)((v + 2.0f) / 4.0f * 65535.0f);
+    strip.setPixelColor(i, strip.gamma32(strip.ColorHSV(hue, 255, 200)));
+  }
+}
+
+// ── Police: left half flashes red, right half flashes blue, alternating ──
+static void renderPolice(void) {
+  uint32_t ph = (millis() / 180) % 4;
+  int half = neo_count / 2;
+  for (int i = 0; i < neo_count; i++) {
+    bool left = (i < half);
+    if (ph == 0 && left)  strip.setPixelColor(i, 255, 0, 0);
+    if (ph == 2 && !left) strip.setPixelColor(i, 0, 0, 255);
+    // ph 1 and 3 = dark gap
+  }
+}
+
+// ── Lightning: a dark storm broken by random blue-white strikes + afterglow ──
+static void renderLightning(void) {
+  static uint8_t  flash      = 0;
+  static uint32_t nextStrike = 0;
+  uint32_t now = millis();
+  if (flash > 30) flash -= 30; else flash = 0;   // fast decay
+  if (now >= nextStrike) {
+    flash = 255;
+    nextStrike = now + random(350, 2600);         // irregular storm timing
+  } else if (flash > 40 && random(0, 3) == 0) {
+    flash = 255;                                   // crackle / double strike
+  }
+  uint8_t b = flash;
+  uint8_t r = (uint8_t)(((uint16_t)b * 200) / 255);  // cool blue-white
+  uint8_t g = (uint8_t)(((uint16_t)b * 220) / 255);
+  for (int i = 0; i < neo_count; i++) strip.setPixelColor(i, r, g, b);
+}
+
+// ── Matrix: green "digital rain" cascades along the strip with fading trails ──
+static void renderMatrix(void) {
+  static uint8_t  rain[NEOPIXEL_COUNT] = {};
+  static uint32_t lastShift = 0;
+  uint32_t now = millis();
+  if (now - lastShift > 55) {
+    for (int i = neo_count - 1; i > 0; i--) rain[i] = rain[i - 1];  // fall
+    rain[0] = (random(0, 4) == 0) ? 255 : 0;                       // new drop head
+    lastShift = now;
+  }
+  for (int i = 0; i < neo_count; i++) {
+    uint8_t g = rain[i];
+    // White-hot head, green trail
+    strip.setPixelColor(i, g > 240 ? 180 : g / 6, g, g > 240 ? 180 : g / 6);
+    if (rain[i] > 12) rain[i] -= 12;   // fade the trail
+  }
+}
+
+// ── Mood: the whole strip holds one colour that drifts slowly through the wheel ──
+static void renderMood(void) {
+  uint16_t hue = (uint16_t)((millis() / 15) & 0xFFFF);
+  uint32_t c = strip.gamma32(strip.ColorHSV(hue, 255, 255));
+  for (int i = 0; i < neo_count; i++) strip.setPixelColor(i, c);
+}
+
+// ── Lava: overlapping slow sines make warm blobs rise and merge (lava lamp) ──
+static void renderLava(void) {
+  float t = millis() / 1200.0f;
+  for (int i = 0; i < neo_count; i++) {
+    float v = sinf(i * 0.25f + t) + sinf(i * 0.11f - t * 0.6f) + sinf(i * 0.07f + t * 0.3f);
+    float n = (v + 3.0f) / 6.0f;          // 0..1
+    uint8_t r = (uint8_t)(n * 255);
+    uint8_t g = (uint8_t)(n * n * 70);    // warm orange peaks only — no yellow
+    strip.setPixelColor(i, r, g, 0);
+  }
+}
+
+// ── Firefly: sparse soft warm-green glows that fade in, hold, and fade out ──
+static void renderFirefly(void) {
+  static uint8_t bri[NEOPIXEL_COUNT] = {};
+  static int8_t  dir[NEOPIXEL_COUNT] = {};
+  for (int i = 0; i < neo_count; i++) {
+    if (bri[i] == 0 && dir[i] == 0) {
+      if (random(0, 50) == 0) dir[i] = 1;        // occasionally wake a firefly
+    } else {
+      int v = bri[i] + dir[i] * 5;
+      if (v >= 200) { v = 200; dir[i] = -1; }
+      if (v <= 0)   { v = 0;   dir[i] = 0; }
+      bri[i] = v;
+    }
+    uint8_t b = bri[i];
+    strip.setPixelColor(i, (uint8_t)(((uint16_t)b * 180) / 255), b, 0);  // warm yellow-green
+  }
+}
+
+// ── Meteor: a bright head sweeps the strip leaving a randomly-decaying trail ──
+static void renderMeteor(void) {
+  static uint8_t trail[NEOPIXEL_COUNT] = {};
+  uint8_t ar = (ambientColor >> 16) & 0xFF;
+  uint8_t ag = (ambientColor >> 8)  & 0xFF;
+  uint8_t ab = (ambientColor)       & 0xFF;
+  int span = neo_count + 12;
+  int head = (int)((millis() / 38) % span) - 6;   // sweeps in from off-screen
+  for (int i = 0; i < neo_count; i++)
+    if (random(0, 10) > 4 && trail[i] > 24) trail[i] -= 24;  // uneven sparkle decay
+  for (int i = head; i < head + 2; i++)
+    if (i >= 0 && i < neo_count) trail[i] = 255;
+  for (int i = 0; i < neo_count; i++) {
+    float f = trail[i] / 255.0f;
+    strip.setPixelColor(i, (uint8_t)(ar * f), (uint8_t)(ag * f), (uint8_t)(ab * f));
+  }
+}
+
 static void renderWPMMeter(void) {
   uint8_t w = Keyer_GetWPM();
   // Map 5-40 WPM to 0-20 LEDs
@@ -315,6 +564,23 @@ void NeoPixel_Update(void) {
     case NEO_STARFIELD:  renderStarfield();   break;
     case NEO_CHASE:      renderChase();       break;
     case NEO_RAINBOW:    renderRainbowMode(); break;
+    case NEO_COMET:      renderComet();       break;
+    case NEO_SCANNER:    renderScanner();     break;
+    case NEO_FIRE:       renderFire();        break;
+    case NEO_TWINKLE:    renderTwinkle();     break;
+    case NEO_AURORA:     renderAurora();      break;
+    case NEO_THEATER:    renderTheater();     break;
+    case NEO_WIPE:       renderWipe();        break;
+    case NEO_PULSE:      renderPulse();       break;
+    case NEO_WAVE:       renderWave();        break;
+    case NEO_PLASMA:     renderPlasma();      break;
+    case NEO_POLICE:     renderPolice();      break;
+    case NEO_LIGHTNING:  renderLightning();   break;
+    case NEO_MATRIX:     renderMatrix();      break;
+    case NEO_MOOD:       renderMood();        break;
+    case NEO_LAVA:       renderLava();        break;
+    case NEO_FIREFLY:    renderFirefly();     break;
+    case NEO_METEOR:     renderMeteor();      break;
     default: break;
   }
   strip.show();

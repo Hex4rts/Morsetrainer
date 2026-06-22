@@ -30,7 +30,13 @@ static inline uint16_t ditMs(void) { return 1200 / Keyer_GetWPM(); }
 enum Phase { PH_MENU, PH_INTRO, PH_LISTEN, PH_WAITING, PH_FEEDBACK };
 
 // ── Difficulty (what reference shows) ──
-enum Difficulty { DIFF_BEGINNER, DIFF_INTERMEDIATE, DIFF_EXPERT, DIFF_LEARN };
+enum Difficulty { DIFF_BEGINNER, DIFF_INTERMEDIATE, DIFF_EXPERT, DIFF_LEARN, DIFF_CUSTOM };
+
+// CUSTOM mode: player picks which aids are shown. At least one is always on
+// (the config screen forbids all-off, which would leave nothing to copy).
+static bool customLetter = true;   // show the target letter on screen
+static bool customBars   = false;  // show the dit/dah reference bars
+static bool customSound  = true;   // play the morse audio
 
 // ── Per-character tracking ──
 typedef struct {
@@ -61,9 +67,24 @@ static uint32_t score        = 0;
 static bool     active       = false;
 static Difficulty diff       = DIFF_BEGINNER;
 
-// Should reference bars be shown during playback?
+// ── Which aids are active for the current mode ──
+// Beginner: letter+bars+sound · Intermediate: letter+sound · Expert: sound only
+// Custom: whatever the player toggled. (LEARN handles its own display inline.)
 static inline bool showRefBars(void) {
-  return (diff == DIFF_BEGINNER) || (diff == DIFF_LEARN && learnAssisted);
+  if (diff == DIFF_BEGINNER) return true;
+  if (diff == DIFF_CUSTOM)   return customBars;
+  return (diff == DIFF_LEARN && learnAssisted);
+}
+// Is the target letter revealed while the player copies?
+static inline bool showLetterAid(void) {
+  if (diff == DIFF_EXPERT) return false;
+  if (diff == DIFF_CUSTOM) return customLetter;
+  return true;  // beginner + intermediate
+}
+// Is the morse audio played for the challenge?
+static inline bool playSoundAid(void) {
+  if (diff == DIFF_CUSTOM) return customSound;
+  return true;  // every preset plays sound
 }
 
 // Current challenge
@@ -393,12 +414,8 @@ static void startPlayback(void) {
     return;  // don't fall through to generic setup
   }
 
-  // Other modes: BEGINNER, INTERMEDIATE, EXPERT
-  if (diff == DIFF_EXPERT) {
-    lv_label_set_text(challengeLbl, "?");
-  } else {
-    lv_label_set_text(challengeLbl, challenge);
-  }
+  // Other modes: BEGINNER, INTERMEDIATE, EXPERT, CUSTOM
+  lv_label_set_text(challengeLbl, showLetterAid() ? challenge : "?");
 
   if (showRefBars()) {
     lv_label_set_text(refPatLbl, fullRef);
@@ -407,17 +424,29 @@ static void startPlayback(void) {
   }
 
   clearBars(refBars);
-  phase = PH_LISTEN;
-  Keyer_SetInputBlocked(true);
-  lv_label_set_text(promptLbl, "LISTEN...");
-  lv_obj_set_style_text_color(promptLbl, lv_color_hex(0xFFB300), 0);
-
   lv_label_set_text(userCharLbl, "");
   lv_label_set_text(feedbackLbl, "");
   clearBars(userBars); skClearBars();
   cbR = cbW; ebR = ebW;
   userLen = 0; userInput[0] = '\0';
   userVisLen = 0; userVisPat[0] = '\0';
+
+  if (!playSoundAid()) {
+    // No audio (custom, sound off): nothing to "listen" to — show the bars
+    // immediately if enabled and hand straight over to the player.
+    if (showRefBars()) drawBars(refBars, fullRef, 68);
+    phase = PH_WAITING;
+    Keyer_SetInputBlocked(false);
+    phaseStart = millis();
+    lv_label_set_text(promptLbl, "YOUR TURN!");
+    lv_obj_set_style_text_color(promptLbl, lv_color_hex(0x00E676), 0);
+    return;
+  }
+
+  phase = PH_LISTEN;
+  Keyer_SetInputBlocked(true);
+  lv_label_set_text(promptLbl, "LISTEN...");
+  lv_obj_set_style_text_color(promptLbl, lv_color_hex(0xFFB300), 0);
 }
 
 // ── Introduction: show letter, play it, user just watches ──
@@ -790,8 +819,8 @@ static void tick_cb(lv_timer_t* t) {
       if (playPos >= refLen) {
         Sidetone_Off();
         if (showRefBars()) drawBars(refBars, fullRef, 68);
-        // Expert: reveal the letter now that audio is done
-        if (diff == DIFF_EXPERT) lv_label_set_text(challengeLbl, challenge);
+        // The letter stays hidden ("?") whenever it isn't an active aid, so
+        // expert / no-letter custom truly copy by ear — revealed only on feedback.
         phase = PH_WAITING;
         Keyer_SetInputBlocked(false);
         phaseStart = millis();
@@ -904,6 +933,9 @@ static void skip_cb(lv_event_t* e) { nextChallenge(); }
 
 // ── Menu ──
 static void startGame(Difficulty d);
+static void showMenu(void);
+static void showCustomConfig(void);
+static void custom_cb(lv_event_t* e)       { showCustomConfig(); }
 static void beginner_cb(lv_event_t* e)     { startGame(DIFF_BEGINNER); }
 static void intermediate_cb(lv_event_t* e) { startGame(DIFF_INTERMEDIATE); }
 static void expert_cb(lv_event_t* e)       { startGame(DIFF_EXPERT); }
@@ -969,19 +1001,21 @@ static void showMenu(void) {
 
   // Difficulty buttons
   lv_obj_t* b;
-  b = mkMenuBtn(menuScr, "LEARN", "guided step by step", lv_color_hex(0xFFFFFF), 58);
+  b = mkMenuBtn(menuScr, "LEARN", "guided step by step", lv_color_hex(0xFFFFFF), 50);
   lv_obj_add_event_cb(b, learn_cb, LV_EVENT_CLICKED, NULL);
-  b = mkMenuBtn(menuScr, "BEGINNER", "letter+bars+sound", lv_color_hex(0x00E676), 90);
+  b = mkMenuBtn(menuScr, "BEGINNER", "letter+bars+sound", lv_color_hex(0x00E676), 78);
   lv_obj_add_event_cb(b, beginner_cb, LV_EVENT_CLICKED, NULL);
-  b = mkMenuBtn(menuScr, "INTERMEDIATE", "letter+sound", lv_color_hex(0xFFB300), 122);
+  b = mkMenuBtn(menuScr, "INTERMEDIATE", "letter+sound", lv_color_hex(0xFFB300), 106);
   lv_obj_add_event_cb(b, intermediate_cb, LV_EVENT_CLICKED, NULL);
-  b = mkMenuBtn(menuScr, "EXPERT", "sound only", lv_color_hex(0xFF3D00), 154);
+  b = mkMenuBtn(menuScr, "EXPERT", "sound only", lv_color_hex(0xFF3D00), 134);
   lv_obj_add_event_cb(b, expert_cb, LV_EVENT_CLICKED, NULL);
+  b = mkMenuBtn(menuScr, "CUSTOM", "pick your aids", lv_color_hex(0x42A5F5), 162);
+  lv_obj_add_event_cb(b, custom_cb, LV_EVENT_CLICKED, NULL);
 
   // Bottom: BACK button centered
   lv_obj_t* bb = lv_button_create(menuScr);
   lv_obj_set_size(bb, 80, 24);
-  lv_obj_set_pos(bb, 120, 188);
+  lv_obj_set_pos(bb, 120, 192);
   lv_obj_set_style_bg_color(bb, lv_color_hex(0x333333), 0);
   lv_obj_set_style_shadow_width(bb, 0, 0);
   lv_obj_set_style_radius(bb, 4, 0);
@@ -992,6 +1026,91 @@ static void showMenu(void) {
   lv_obj_add_event_cb(bb, exit_cb, LV_EVENT_CLICKED, NULL);
 
   lv_screen_load(menuScr);
+}
+
+// ── Custom config screen: three independent aid toggles ──
+static lv_obj_t* customScr   = NULL;
+static lv_obj_t* tglLetterBtn = NULL, *tglBarsBtn = NULL, *tglSoundBtn = NULL;
+
+static void setToggleVisual(lv_obj_t* btn, bool on) {
+  lv_color_t c = on ? lv_color_hex(0x00E676) : lv_color_hex(0x444444);
+  lv_obj_t* stLbl = lv_obj_get_child(btn, 1);   // right-side label from mkMenuBtn
+  lv_obj_set_style_border_color(btn, c, 0);
+  if (stLbl) { lv_label_set_text(stLbl, on ? "ON" : "OFF"); lv_obj_set_style_text_color(stLbl, c, 0); }
+}
+static void tgl_letter_cb(lv_event_t* e) { customLetter = !customLetter; setToggleVisual(tglLetterBtn, customLetter); }
+static void tgl_bars_cb(lv_event_t* e)   { customBars   = !customBars;   setToggleVisual(tglBarsBtn,   customBars);   }
+static void tgl_sound_cb(lv_event_t* e)  { customSound  = !customSound;  setToggleVisual(tglSoundBtn,  customSound);  }
+
+static void custom_back_cb(lv_event_t* e) {
+  if (customScr) { lv_obj_delete(customScr); customScr = NULL; }
+  showMenu();
+}
+static void custom_start_cb(lv_event_t* e) {
+  // Guard the empty selection — with no aid at all there's nothing to copy.
+  if (!customLetter && !customBars && !customSound) {
+    customLetter = true; setToggleVisual(tglLetterBtn, true);
+    return;
+  }
+  if (customScr) { lv_obj_delete(customScr); customScr = NULL; }
+  startGame(DIFF_CUSTOM);
+}
+
+static void showCustomConfig(void) {
+  if (menuScr) { lv_obj_delete(menuScr); menuScr = NULL; }
+  customScr = lv_obj_create(NULL);
+  lv_obj_set_style_bg_color(customScr, lv_color_hex(0x000000), 0);
+  lv_obj_set_style_bg_opa(customScr, LV_OPA_COVER, 0);
+
+  lv_obj_t* t = lv_label_create(customScr);
+  lv_label_set_text(t, "CUSTOM");
+  lv_obj_set_style_text_color(t, lv_color_hex(0x42A5F5), 0);
+#if LV_FONT_MONTSERRAT_24
+  lv_obj_set_style_text_font(t, &lv_font_montserrat_24, 0);
+#endif
+  lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 4);
+
+  lv_obj_t* sub = lv_label_create(customScr);
+  lv_label_set_text(sub, "Tap to pick your aids");
+  lv_obj_set_style_text_color(sub, lv_color_hex(0x666666), 0);
+  lv_obj_align(sub, LV_ALIGN_TOP_MID, 0, 32);
+
+  tglLetterBtn = mkMenuBtn(customScr, "LETTER", "ON", lv_color_hex(0x00E676), 60);
+  lv_obj_add_event_cb(tglLetterBtn, tgl_letter_cb, LV_EVENT_CLICKED, NULL);
+  setToggleVisual(tglLetterBtn, customLetter);
+  tglBarsBtn = mkMenuBtn(customScr, "BARS", "OFF", lv_color_hex(0x00E676), 96);
+  lv_obj_add_event_cb(tglBarsBtn, tgl_bars_cb, LV_EVENT_CLICKED, NULL);
+  setToggleVisual(tglBarsBtn, customBars);
+  tglSoundBtn = mkMenuBtn(customScr, "SOUND", "ON", lv_color_hex(0x00E676), 132);
+  lv_obj_add_event_cb(tglSoundBtn, tgl_sound_cb, LV_EVENT_CLICKED, NULL);
+  setToggleVisual(tglSoundBtn, customSound);
+
+  // START (green, left) and BACK (gray, right)
+  lv_obj_t* sb = lv_button_create(customScr);
+  lv_obj_set_size(sb, 130, 30);
+  lv_obj_align(sb, LV_ALIGN_BOTTOM_LEFT, 20, -10);
+  lv_obj_set_style_bg_color(sb, lv_color_hex(0x00E676), 0);
+  lv_obj_set_style_shadow_width(sb, 0, 0);
+  lv_obj_set_style_radius(sb, 4, 0);
+  lv_obj_set_ext_click_area(sb, 8);
+  lv_obj_t* sl = lv_label_create(sb);
+  lv_label_set_text(sl, "START"); lv_obj_set_style_text_color(sl, lv_color_hex(0x000000), 0);
+  lv_obj_center(sl);
+  lv_obj_add_event_cb(sb, custom_start_cb, LV_EVENT_CLICKED, NULL);
+
+  lv_obj_t* bb = lv_button_create(customScr);
+  lv_obj_set_size(bb, 130, 30);
+  lv_obj_align(bb, LV_ALIGN_BOTTOM_RIGHT, -20, -10);
+  lv_obj_set_style_bg_color(bb, lv_color_hex(0x333333), 0);
+  lv_obj_set_style_shadow_width(bb, 0, 0);
+  lv_obj_set_style_radius(bb, 4, 0);
+  lv_obj_set_ext_click_area(bb, 8);
+  lv_obj_t* bl = lv_label_create(bb);
+  lv_label_set_text(bl, "BACK"); lv_obj_set_style_text_color(bl, lv_color_hex(0xFF3D00), 0);
+  lv_obj_center(bl);
+  lv_obj_add_event_cb(bb, custom_back_cb, LV_EVENT_CLICKED, NULL);
+
+  lv_screen_load(customScr);
 }
 
 // ── Start game ──
@@ -1131,5 +1250,6 @@ void Game_Trainer_Stop(void) {
   Keyer_OnElement([](bool s, bool d) { if (s) NeoPixel_KeyFlash(d); });
   if (scr) { lv_obj_delete(scr); scr = NULL; }
   if (menuScr) { lv_obj_delete(menuScr); menuScr = NULL; }
+  if (customScr) { lv_obj_delete(customScr); customScr = NULL; }
   UI_ShowMain();
 }

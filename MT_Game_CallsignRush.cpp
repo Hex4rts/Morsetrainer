@@ -20,9 +20,10 @@ static inline uint16_t ditMs(void) { return 1200 / Keyer_GetWPM(); }
 #define CR_BAR_GAP    2
 #define CR_LETTER_GAP 6
 
-enum CRDiff { CR_BGN, CR_INT, CR_EXP };
-// Beginner:     show callsign text + play audio + visual bars + 15s
+enum CRDiff { CR_BGN, CR_INT, CR_LTR, CR_EXP };
+// Beginner:     show callsign text + play audio + visual bars (no timer)
 // Intermediate: show callsign text + play audio + 12s
+// Letter only:  show callsign text, NO audio, NO bars + 12s (send from memory)
 // Expert:       play audio only + 12s (must decode by ear)
 
 static const char* prefixes[] = {
@@ -151,8 +152,16 @@ static void newRound(void) {
   // Beginner + Intermediate: show callsign text + play audio
   // Expert: play audio only
   buildPlayStr();
-  playPos = 0; playCtr = ditMs() / CR_TICK_MS; playTone = false; playing = true;
-  Keyer_SetInputBlocked(true);
+  playPos = 0; playCtr = ditMs() / CR_TICK_MS; playTone = false;
+  if (crdiff == CR_LTR) {
+    // Letter only: no audio crutch — the callsign is on screen, send it from
+    // memory. Input is live immediately and the clock starts right away.
+    playing = false;
+    Keyer_SetInputBlocked(false);
+  } else {
+    playing = true;
+    Keyer_SetInputBlocked(true);
+  }
 
   if (crdiff == CR_EXP) {
     lv_label_set_text(callLbl, "???");
@@ -163,12 +172,19 @@ static void newRound(void) {
     }
   } else {
     lv_label_set_text(callLbl, target);
-    if (statusLbl) lv_label_set_text(statusLbl, "");
     // Beginner: show visual dit/dah bars
     if (crdiff == CR_BGN) {
       drawCallBars(190);  // low on screen, clear of the input label
     } else {
       clearCallBars();
+    }
+    if (statusLbl) {
+      if (crdiff == CR_LTR) {
+        lv_label_set_text(statusLbl, "SEND IT");
+        lv_obj_set_style_text_color(statusLbl, lv_color_hex(0x00E676), 0);
+      } else {
+        lv_label_set_text(statusLbl, "");
+      }
     }
   }
 
@@ -312,6 +328,7 @@ static void startCR(CRDiff d);
 static void menu_exit(lv_event_t* e) { if (menuScr) { lv_obj_delete(menuScr); menuScr = NULL; } UI_ShowMain(); }
 static void bgn_cb(lv_event_t* e) { startCR(CR_BGN); }
 static void int_cb(lv_event_t* e) { startCR(CR_INT); }
+static void ltr_cb(lv_event_t* e) { startCR(CR_LTR); }
 static void exp_cb(lv_event_t* e) { startCR(CR_EXP); }
 
 static lv_obj_t* mmkBtn(lv_obj_t* p, const char* t, const char* d, lv_color_t c, int16_t y) {
@@ -351,11 +368,13 @@ void Game_CallsignRush_Start(void) {
   lv_obj_align(sub, LV_ALIGN_TOP_MID, 0, 42);
 
   lv_obj_t* b;
-  b = mmkBtn(menuScr, "BEGINNER", "text+visual+audio", lv_color_hex(0x00E676), 70);
+  b = mmkBtn(menuScr, "BEGINNER", "text+visual+audio", lv_color_hex(0x00E676), 62);
   lv_obj_add_event_cb(b, bgn_cb, LV_EVENT_CLICKED, NULL);
-  b = mmkBtn(menuScr, "INTERMEDIATE", "text+audio 12s", lv_color_hex(0xFFB300), 108);
+  b = mmkBtn(menuScr, "INTERMEDIATE", "text+audio 12s", lv_color_hex(0xFFB300), 98);
   lv_obj_add_event_cb(b, int_cb, LV_EVENT_CLICKED, NULL);
-  b = mmkBtn(menuScr, "EXPERT", "audio only 12s", lv_color_hex(0xFF3D00), 146);
+  b = mmkBtn(menuScr, "LETTER ONLY", "text, no audio 12s", lv_color_hex(0xFF8F00), 134);
+  lv_obj_add_event_cb(b, ltr_cb, LV_EVENT_CLICKED, NULL);
+  b = mmkBtn(menuScr, "EXPERT", "audio only 12s", lv_color_hex(0xFF3D00), 170);
   lv_obj_add_event_cb(b, exp_cb, LV_EVENT_CLICKED, NULL);
 
   lv_obj_t* bb = lv_button_create(menuScr);

@@ -8,6 +8,7 @@
 #include "MT_Game_Trainer.h"
 #include "MT_Game_QSO.h"
 #include "MT_Game_Phrases.h"
+#include "MT_Game_MorseMemory.h"
 
 extern const lv_font_t* ui_font_large;
 extern const lv_font_t* ui_font_normal;
@@ -17,12 +18,14 @@ static lv_obj_t* hsLbl2 = NULL;
 static lv_obj_t* hsLbl3 = NULL;
 static lv_obj_t* hsLbl4 = NULL;
 static lv_obj_t* hsLbl5 = NULL;
+static lv_obj_t* hsLbl6 = NULL;
 
 static void falling_cb(lv_event_t* e) { Game_FallingLetters_Start(); }
 static void callrush_cb(lv_event_t* e) { Game_CallsignRush_Start(); }
 static void trainer_cb(lv_event_t* e) { Game_Trainer_Start(); }
 static void qso_cb(lv_event_t* e) { Game_QSO_Start(); }
 static void phrases_cb(lv_event_t* e) { Game_Phrases_Start(); }
+static void memory_cb(lv_event_t* e) { Game_MorseMemory_Start(); }
 
 // Helper: game card (no icon — title + desc + best score)
 static lv_obj_t* makeGameCard(lv_obj_t* parent, const char* name,
@@ -87,33 +90,20 @@ void UI_Games_Create(lv_obj_t* parent) {
                                "Practice CW contacts", 160, 58, &hsLbl4);
   lv_obj_add_event_cb(c4, qso_cb, LV_EVENT_CLICKED, NULL);
 
-  // 5th card: CW Essentials - compact
-  lv_obj_t* c5 = lv_obj_create(parent);
-  lv_obj_remove_style_all(c5);
-  lv_obj_set_size(c5, 150, 32);
-  lv_obj_set_pos(c5, 85, 114);
-  lv_obj_set_style_bg_color(c5, lv_color_hex(0x1A1A1A), 0);
-  lv_obj_set_style_bg_opa(c5, LV_OPA_COVER, 0);
-  lv_obj_set_style_radius(c5, 8, 0);
-  lv_obj_set_style_border_color(c5, lv_color_hex(0x333333), 0);
-  lv_obj_set_style_border_width(c5, 1, 0);
-  lv_obj_set_style_pad_all(c5, 4, 0);
-  lv_obj_clear_flag(c5, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_add_flag(c5, LV_OBJ_FLAG_CLICKABLE);
-  lv_obj_t* c5n = lv_label_create(c5);
-  lv_label_set_text(c5n, "CW Essentials");
-  lv_obj_set_style_text_color(c5n, lv_color_hex(0xFFFFFF), 0);
-  lv_obj_align(c5n, LV_ALIGN_LEFT_MID, 2, -4);
-  hsLbl5 = lv_label_create(c5);
-  lv_label_set_text(hsLbl5, "Best: ---");
-  lv_obj_set_style_text_color(hsLbl5, lv_color_hex(0x00E676), 0);
-  lv_obj_align(hsLbl5, LV_ALIGN_LEFT_MID, 2, 8);
+  // Row 3: two more full-size cards
+  lv_obj_t* c5 = makeGameCard(parent, "CW Essentials",
+                               "Prosigns & Q-codes", 4, 114, &hsLbl5);
   lv_obj_add_event_cb(c5, phrases_cb, LV_EVENT_CLICKED, NULL);
+
+  lv_obj_t* c6 = makeGameCard(parent, "Morse Memory",
+                               "Recall the sequence", 160, 114, &hsLbl6);
+  lv_obj_add_event_cb(c6, memory_cb, LV_EVENT_CLICKED, NULL);
 
   // Set initial scores
   score_board_t tr = Score_Load("trace");
   score_board_t qo = Score_Load("qso");
   score_board_t ph = Score_Load("phrases");
+  score_board_t mm = Score_Load("memory");
   char buf[20];
   if (hsLbl1) {
     if (fl.count > 0) snprintf(buf, sizeof(buf), "Best: %lu", fl.entries[0].score);
@@ -140,46 +130,11 @@ void UI_Games_Create(lv_obj_t* parent) {
     else snprintf(buf, sizeof(buf), "Best: ---");
     lv_label_set_text(hsLbl5, buf);
   }
-
-  // Reset all scores button - 2-step confirmation
-  static bool resetConfirm = false;
-  static lv_obj_t* resetLbl = NULL;
-  lv_obj_t* rb = lv_button_create(parent);
-  lv_obj_set_size(rb, 140, 22);
-  lv_obj_set_pos(rb, 90, 156);
-  lv_obj_set_style_bg_color(rb, lv_color_hex(0x333333), 0);
-  lv_obj_set_style_shadow_width(rb, 0, 0);
-  lv_obj_set_style_radius(rb, 4, 0);
-  resetLbl = lv_label_create(rb);
-  lv_label_set_text(resetLbl, "RESET SCORES");
-  lv_obj_set_style_text_color(resetLbl, lv_color_hex(0xFF3D00), 0);
-  lv_obj_center(resetLbl);
-  resetConfirm = false;
-  lv_obj_add_event_cb(rb, [](lv_event_t* e) {
-    if (!resetConfirm) {
-      resetConfirm = true;
-      if (resetLbl) {
-        lv_label_set_text(resetLbl, "CONFIRM?");
-        lv_obj_set_style_text_color(resetLbl, lv_color_hex(0xFFFFFF), 0);
-        lv_obj_set_style_bg_color((lv_obj_t*)lv_event_get_target(e), lv_color_hex(0xFF3D00), 0);
-      }
-    } else {
-      Score_ClearAll();
-      // Also clear LEARN progress
-      if (SD_MMC.exists("/trainer2.txt")) SD_MMC.remove("/trainer2.txt");
-      if (hsLbl1) lv_label_set_text(hsLbl1, "Best: ---");
-      if (hsLbl2) lv_label_set_text(hsLbl2, "Best: ---");
-      if (hsLbl3) lv_label_set_text(hsLbl3, "Best: ---");
-      if (hsLbl4) lv_label_set_text(hsLbl4, "Best: ---");
-      if (hsLbl5) lv_label_set_text(hsLbl5, "Best: ---");
-      resetConfirm = false;
-      if (resetLbl) {
-        lv_label_set_text(resetLbl, "CLEARED!");
-        lv_obj_set_style_text_color(resetLbl, lv_color_hex(0x00E676), 0);
-        lv_obj_set_style_bg_color((lv_obj_t*)lv_event_get_target(e), lv_color_hex(0x333333), 0);
-      }
-    }
-  }, LV_EVENT_CLICKED, NULL);
+  if (hsLbl6) {
+    if (mm.count > 0) snprintf(buf, sizeof(buf), "Best: %lu", mm.entries[0].score);
+    else snprintf(buf, sizeof(buf), "Best: ---");
+    lv_label_set_text(hsLbl6, buf);
+  }
 }
 
 void UI_Games_Refresh(void) {
@@ -192,6 +147,7 @@ void UI_Games_Refresh(void) {
   score_board_t tr = Score_Load("trace");
   score_board_t qo = Score_Load("qso");
   score_board_t ph = Score_Load("phrases");
+  score_board_t mm = Score_Load("memory");
   char buf[20];
   if (hsLbl1) {
     if (fl.count > 0) snprintf(buf, sizeof(buf), "Best: %lu", fl.entries[0].score);
@@ -217,5 +173,10 @@ void UI_Games_Refresh(void) {
     if (ph.count > 0) snprintf(buf, sizeof(buf), "Best: %lu", ph.entries[0].score);
     else snprintf(buf, sizeof(buf), "Best: ---");
     lv_label_set_text(hsLbl5, buf);
+  }
+  if (hsLbl6) {
+    if (mm.count > 0) snprintf(buf, sizeof(buf), "Best: %lu", mm.entries[0].score);
+    else snprintf(buf, sizeof(buf), "Best: ---");
+    lv_label_set_text(hsLbl6, buf);
   }
 }

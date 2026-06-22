@@ -3,7 +3,9 @@
 #include "MT_Settings.h"
 #include "MT_NeoPixel.h"
 #include "MT_Version.h"
+#include "MT_Score.h"
 #include "Display_ST7789.h"
+#include <SD_MMC.h>
 
 extern const lv_font_t* ui_font_large;
 extern const lv_font_t* ui_font_normal;
@@ -94,6 +96,31 @@ static void restore_cb(lv_event_t* e) {
 }
 static void reset_cb(lv_event_t* e) {
   Settings_FactoryReset(); lv_label_set_text(statusLbl, "FACTORY RESET");
+}
+
+// Reset all game high scores — 2-step confirm so a stray tap can't wipe them.
+static bool      scoreResetConfirm = false;
+static lv_obj_t* scoreResetLbl     = NULL;
+static void resetScores_cb(lv_event_t* e) {
+  lv_obj_t* btn = (lv_obj_t*)lv_event_get_target(e);
+  if (!scoreResetConfirm) {
+    scoreResetConfirm = true;
+    if (scoreResetLbl) {
+      lv_label_set_text(scoreResetLbl, "CONFIRM?");
+      lv_obj_set_style_text_color(scoreResetLbl, lv_color_hex(0xFFFFFF), 0);
+      lv_obj_set_style_bg_color(btn, lv_color_hex(0xFF3D00), 0);
+    }
+  } else {
+    Score_ClearAll();
+    // Also clear LEARN (Morse Trace) progress
+    if (SD_MMC.exists("/trainer2.txt")) SD_MMC.remove("/trainer2.txt");
+    scoreResetConfirm = false;
+    if (scoreResetLbl) {
+      lv_label_set_text(scoreResetLbl, "SCORES CLEARED");
+      lv_obj_set_style_text_color(scoreResetLbl, lv_color_hex(0x00E676), 0);
+      lv_obj_set_style_bg_color(btn, lv_color_hex(0x333333), 0);
+    }
+  }
 }
 
 // ── Helpers ──
@@ -196,7 +223,7 @@ void UI_Settings_Create(lv_obj_t* parent) {
   r = mkRow(parent);
   mkLabel(r, "LED");
   ledDrop = lv_dropdown_create(r);
-  lv_dropdown_set_options(ledDrop, "OFF\nKEY FLASH\nWPM METER\nSTEADY\nBREATHE\nSTARFIELD\nCHASE\nRAINBOW");
+  lv_dropdown_set_options(ledDrop, "OFF\nKEY FLASH\nWPM METER\nSTEADY\nBREATHE\nSTARFIELD\nCHASE\nRAINBOW\nCOMET\nSCANNER\nFIRE\nTWINKLE\nAURORA\nTHEATER\nWIPE\nPULSE\nWAVE\nPLASMA\nPOLICE\nLIGHTNING\nMATRIX\nMOOD\nLAVA\nFIREFLY\nMETEOR");
   lv_dropdown_set_selected(ledDrop, (uint16_t)s->ledMode);
   lv_obj_set_width(ledDrop, 120);
   lv_obj_set_style_bg_color(ledDrop, lv_color_hex(0x1A1A1A), 0);
@@ -285,6 +312,20 @@ void UI_Settings_Create(lv_obj_t* parent) {
   lv_obj_add_event_cb(b, restore_cb, LV_EVENT_CLICKED, NULL);
   b = mkSmBtn(r, "RESET", lv_color_hex(0xFF3D00), 70);
   lv_obj_add_event_cb(b, reset_cb, LV_EVENT_CLICKED, NULL);
+
+  // ── Reset game scores (2-step confirm) ──
+  r = mkRow(parent);
+  scoreResetConfirm = false;
+  lv_obj_t* rs = lv_button_create(r);
+  lv_obj_set_size(rs, 200, 26);
+  lv_obj_set_style_bg_color(rs, lv_color_hex(0x333333), 0);
+  lv_obj_set_style_shadow_width(rs, 0, 0);
+  lv_obj_set_style_radius(rs, 4, 0);
+  scoreResetLbl = lv_label_create(rs);
+  lv_label_set_text(scoreResetLbl, "RESET SCORES");
+  lv_obj_set_style_text_color(scoreResetLbl, lv_color_hex(0xFF3D00), 0);
+  lv_obj_center(scoreResetLbl);
+  lv_obj_add_event_cb(rs, resetScores_cb, LV_EVENT_CLICKED, NULL);
 
   // ── Status ──
   statusLbl = lv_label_create(parent);
