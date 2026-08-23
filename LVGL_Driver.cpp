@@ -1,6 +1,6 @@
 /*****************************************************************************
   LVGL_Driver.cpp — LVGL 9.x for Waveshare ESP32-S3-Touch-LCD-2.8
-  Display: ST7789 240×320, Touch: CST328
+  Display: ST7789 240×320, Touch: CST328 (V1) / CST3530 (V2), auto-detected
 ******************************************************************************/
 #include "LVGL_Driver.h"
 

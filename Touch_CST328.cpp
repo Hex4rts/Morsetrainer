@@ -1,5 +1,11 @@
 #include "Touch_CST328.h"
+#include "Touch_CST3530.h"
 struct CST328_Touch touch_data = {0};
+
+static uint8_t Touch_controller = 0;
+#define TOUCH_CONTROLLER_NONE    0
+#define TOUCH_CONTROLLER_CST328  1
+#define TOUCH_CONTROLLER_CST3530 2
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // I2C
@@ -11,13 +17,17 @@ bool Touch_I2C_Read(uint8_t Driver_addr, uint16_t Reg_addr, uint8_t *Reg_data, u
   Wire1.write((uint8_t)Reg_addr);        
   if ( Wire1.endTransmission(true)){
     printf("The I2C transmission fails. - Touch I2C Read\r\n");
-    return -1;
+    return false;
   }
-  Wire1.requestFrom(Driver_addr, Length);
+  uint32_t read_len = Wire1.requestFrom(Driver_addr, Length);
+  if (read_len != Length) {
+    printf("The I2C read length is wrong. - Touch I2C Read\r\n");
+    return false;
+  }
   for (int i = 0; i < Length; i++) {
     *Reg_data++ = Wire1.read();
   }
-  return 0;
+  return true;
 }
 bool Touch_I2C_Write(uint8_t Driver_addr, uint16_t Reg_addr, const uint8_t *Reg_data, uint32_t Length)
 {
@@ -30,9 +40,9 @@ bool Touch_I2C_Write(uint8_t Driver_addr, uint16_t Reg_addr, const uint8_t *Reg_
   if ( Wire1.endTransmission(true))
   {
     printf("The I2C transmission fails. - Touch I2C Write\r\n");
-    return -1;
+    return false;
   }
-  return 0;
+  return true;
 }
 uint8_t Touch_Init(void) {
   Wire1.begin(CST328_SDA_PIN, CST328_SCL_PIN, I2C_MASTER_FREQ_HZ);
@@ -41,12 +51,23 @@ uint8_t Touch_Init(void) {
 
   CST328_Touch_Reset();
   uint16_t Verification = CST328_Read_cfg();
-  if(!((Verification==0xCACA)?true:false))
-  printf("Touch initialization failed!\r\n");
+  if (Verification == 0xCACA) {
+    Touch_controller = TOUCH_CONTROLLER_CST328;
+    attachInterrupt(CST328_INT_PIN, Touch_CST328_ISR, interrupt);
+    printf("Touch controller CST328 initialized\r\n");
+    return true;
+  }
 
-  attachInterrupt(CST328_INT_PIN, Touch_CST328_ISR, interrupt); 
+  printf("CST328 init failed, try CST3530\r\n");
+  if (TOUCH2_Init()) {
+    Touch_controller = TOUCH_CONTROLLER_CST3530;
+    attachInterrupt(CST328_INT_PIN, Touch_CST328_ISR, interrupt);
+    return true;
+  }
 
-  return ((Verification==0xCACA)?true:false);
+  Touch_controller = TOUCH_CONTROLLER_NONE;
+  printf("CST3530 failed\r\n");
+  return false;
 }
 /* Reset controller */
 uint8_t CST328_Touch_Reset(void)
@@ -61,14 +82,22 @@ uint8_t CST328_Touch_Reset(void)
 }
 uint16_t CST328_Read_cfg(void) {
 
-  uint8_t buf[24];
-  Touch_I2C_Write(CST328_ADDR, HYN_REG_MUT_DEBUG_INFO_MODE, buf, 0);
-  Touch_I2C_Read(CST328_ADDR, HYN_REG_MUT_DEBUG_INFO_BOOT_TIME,buf, 4);
+  uint8_t buf[24] = {0};
+  if (!Touch_I2C_Write(CST328_ADDR, HYN_REG_MUT_DEBUG_INFO_MODE, buf, 0)) {
+    return 0;
+  }
+  if (!Touch_I2C_Read(CST328_ADDR, HYN_REG_MUT_DEBUG_INFO_BOOT_TIME, buf, 4)) {
+    return 0;
+  }
   printf("TouchPad_ID:0x%02x,0x%02x,0x%02x,0x%02x\r\n", buf[0], buf[1], buf[2], buf[3]);
-  Touch_I2C_Read(CST328_ADDR, HYN_REG_MUT_DEBUG_INFO_BOOT_TIME, buf, 4);
+  if (!Touch_I2C_Read(CST328_ADDR, HYN_REG_MUT_DEBUG_INFO_BOOT_TIME, buf, 4)) {
+    return 0;
+  }
   printf("TouchPad_X_MAX:%d    TouchPad_Y_MAX:%d \r\n", buf[1]*256+buf[0],buf[3]*256+buf[2]);
 
-  Touch_I2C_Read(CST328_ADDR, HYN_REG_MUT_DEBUG_INFO_TP_NTX, buf, 24);
+  if (!Touch_I2C_Read(CST328_ADDR, HYN_REG_MUT_DEBUG_INFO_TP_NTX, buf, 24)) {
+    return 0;
+  }
   printf("D1F4:0x%02x,0x%02x,0x%02x,0x%02x\r\n", buf[0], buf[1], buf[2], buf[3]);
   printf("D1F8:0x%02x,0x%02x,0x%02x,0x%02x\r\n", buf[4], buf[5], buf[6], buf[7]);
   printf("D1FC:0x%02x,0x%02x,0x%02x,0x%02x\r\n", buf[8], buf[9], buf[10], buf[11]);
@@ -84,12 +113,21 @@ uint16_t CST328_Read_cfg(void) {
 // reads sensor and touches
 // updates Touch Points, but if not touched, resets all Touch Point Information
 uint8_t Touch_Read_Data(void) {
-  uint8_t buf[41];
+  if (Touch_controller == TOUCH_CONTROLLER_CST3530) {
+    return Touch2_Read_Data();
+  }
+  if (Touch_controller != TOUCH_CONTROLLER_CST328) {
+    return false;
+  }
+
+  uint8_t buf[41] = {0};
   uint8_t touch_cnt = 0;
   uint8_t clear = 0;
   uint8_t Over = 0xAB;
   size_t i = 0,num=0;
-  Touch_I2C_Read(CST328_ADDR, ESP_LCD_TOUCH_CST328_READ_Number_REG, buf, 1);
+  if (!Touch_I2C_Read(CST328_ADDR, ESP_LCD_TOUCH_CST328_READ_Number_REG, buf, 1)) {
+    return false;
+  }
   if ((buf[0] & 0x0F) == 0x00) {                                              
     Touch_I2C_Write(CST328_ADDR, ESP_LCD_TOUCH_CST328_READ_Number_REG, &clear, 1);  // No touch data
   } else {
@@ -100,7 +138,10 @@ uint8_t Touch_Read_Data(void) {
       return true;
     }
     /* Read all points */
-    Touch_I2C_Read(CST328_ADDR, ESP_LCD_TOUCH_CST328_READ_XY_REG, &buf[1], 27);
+    if (!Touch_I2C_Read(CST328_ADDR, ESP_LCD_TOUCH_CST328_READ_XY_REG, &buf[1], 27)) {
+      Touch_I2C_Write(CST328_ADDR, ESP_LCD_TOUCH_CST328_READ_Number_REG, &clear, 1);
+      return false;
+    }
     /* Clear all */
     Touch_I2C_Write(CST328_ADDR, ESP_LCD_TOUCH_CST328_READ_Number_REG, &clear, 1);
     // printf(" points=%d \r\n",touch_cnt);
@@ -129,6 +170,16 @@ void Touch_Loop(void){
 }
 
 uint8_t Touch_Get_XY(uint16_t *x, uint16_t *y, uint16_t *strength, uint8_t *point_num, uint8_t max_point_num) {
+  if (Touch_controller == TOUCH_CONTROLLER_CST3530) {
+    return Touch2_Get_XY(x, y, strength, point_num, max_point_num);
+  }
+  if (Touch_controller != TOUCH_CONTROLLER_CST328) {
+    if (point_num) {
+      *point_num = 0;
+    }
+    return false;
+  }
+
   assert(x != NULL);
   assert(y != NULL);
   assert(point_num != NULL);

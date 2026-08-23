@@ -9,8 +9,8 @@
 // --- LCD (ST7789 via SPI / FSPI) ---
 //     Defined in Display_ST7789.h: MOSI=45, SCLK=40, CS=42, DC=41, RST=39, BL=5
 
-// --- Touch (CST328 via Wire1) ---
-//     Defined in Touch_CST328.h: SDA=1, SCL=3, INT=4, RST=2
+// --- Touch (CST328 on V1 boards / CST3530 on V2 boards, via Wire1) ---
+//     Auto-detected at boot in Touch_Init(). Same pins on both: SDA=1, SCL=3, INT=4, RST=2
 
 // --- I2C bus (Wire — RTC, IMU) ---
 //     Defined in I2C_Driver.h: SDA=11, SCL=10
