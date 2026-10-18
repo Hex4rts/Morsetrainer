@@ -183,6 +183,7 @@ Requires the custom partition table (`partitions.csv`) with 2x3MB app slots. "Hu
 MorseTrainer/
   MorseTrainer.ino            Main sketch
   MT_Version.h                Version number (single source of truth)
+  changelog.json              Release history - the website renders it from GitHub
   MT_Pins.h                   GPIO definitions
   partitions.csv              Custom partition table (2x3MB OTA)
   lv_conf.h                   LVGL configuration

@@ -1,0 +1,165 @@
+{
+  "_comment": "MorseTrainer release history, newest first. The website reads this file from GitHub (main branch) to render its changelog and the version badge. Add a new release at the TOP and keep 'version' equal to MT_VERSION in MT_Version.h.",
+  "releases": [
+    {
+      "version": "0.45",
+      "date": "2026-10-18",
+      "tag": "FEATURE",
+      "changes": [
+        "New ABC tab: a Morse reference with two pages - A-Z / 0-9 / punctuation as dit/dah bars, and every Q-code, prosign and abbreviation from CW Essentials with its meaning.",
+        "Tap any entry in the ABC tab to hear it at your keyer WPM (prosigns are sent run-together) - the LEDs flash along with it.",
+        "New Fist Check on the OPS tab: send anything and get a live read-out of your timing - speed, dit steadiness, dah:dit ratio, and element / letter / word spacing against the ideal 1 / 3 / 7, with a score and a tip. Straight key gets the full analysis; iambic checks your spacing.",
+        "Falling Letters now deals from a shuffled A-Z bag: every letter appears once before any letter repeats, and a letter already falling isn't dropped again.",
+        "All games now use the hardware random generator again - playing Phrases used to switch the whole device to a weaker one until reboot."
+      ]
+    },
+    {
+      "version": "0.44",
+      "date": "2026-08-23",
+      "tag": "HARDWARE",
+      "changes": [
+        "Support for Waveshare board V2: the new CST3530 touch controller is now auto-detected at boot alongside the V1 CST328.",
+        "One single firmware now runs on both board revisions - no separate builds."
+      ]
+    },
+    {
+      "version": "0.43",
+      "date": "2026-06-21",
+      "tag": "FEATURE",
+      "changes": [
+        "New game Morse Memory: the device plays a growing letter sequence and you key it back; one wrong letter ends the run, with Beginner, Intermediate and Expert levels.",
+        "Morse Trace gains a CUSTOM mode where you choose which aids to show (letter, dit/dah bars, sound); at least one must stay on.",
+        "Callsign Rush adds a LETTER ONLY level: the callsign is shown with no audio or bars and you send it from memory against a 12 s clock.",
+        "17 new NeoPixel effects including Comet, Scanner, Fire, Twinkle, Aurora, Plasma, Lightning, Matrix, Lava and Meteor.",
+        "The OPS tab now shows CW Essentials and Morse Memory as full-size cards, and the Reset Scores button moved to the CFG tab."
+      ]
+    },
+    {
+      "version": "0.42",
+      "date": "2026-06-01",
+      "tag": "FIX",
+      "changes": [
+        "Callsign Rush checks each letter as you send it, the timer only runs while you are sending, and Expert now keeps the callsign hidden until you miss.",
+        "Callsign Rush Beginner keeps the letters you already got right after a mistake, and the game over screen shows the callsign you missed.",
+        "Falling Letters Beginner falls more slowly and spawns letters less often, and the first letter now appears right away.",
+        "QSO Simulator ignores spaces when checking your reply, so you no longer need exact word-gap timing.",
+        "Scores in Callsign Rush and Falling Letters are now saved when you leave a game with EXIT."
+      ]
+    },
+    {
+      "version": "0.41",
+      "date": "2026-05-20",
+      "tag": "FEATURE",
+      "changes": [
+        "New Straight Key Timing option on the KEY tab: AUTO (adaptive, learns your speed) or WPM-BASED (uses the WPM setting).",
+        "Paddles and straight key are muted while a game plays Morse, so your sidetone no longer plays over the playback and stray keying is ignored.",
+        "The decoder now drops a character as soon as your keying can no longer match any valid Morse code, so one stray element doesn't spoil the next letter.",
+        "After a wrong answer in CW Essentials and Callsign Rush, keying already in progress is discarded so the retry starts clean.",
+        "Larger touch areas for the CLR, EXIT, LIST, BACK and page buttons."
+      ]
+    },
+    {
+      "version": "0.40",
+      "date": "2026-04-20",
+      "tag": "FIX",
+      "changes": [
+        "Fixed Morse playback in Callsign Rush, CW Essentials, QSO Simulator and Morse Trace: gaps between characters were too long, so playback was slower than the set WPM."
+      ]
+    },
+    {
+      "version": "0.39",
+      "date": "2026-04-20",
+      "tag": "FEATURE",
+      "changes": [
+        "CW Essentials now has 65 abbreviations and Q-codes, ordered by how often they are used in real CW QSOs.",
+        "Guided and Practice modes open a paged phrase list: pick one phrase to repeat or choose Shuffle All.",
+        "Shuffle goes through every phrase once before any repeats, instead of cycling through the same few.",
+        "New LIST button in phrase modes takes you back to the phrase picker.",
+        "Swiping no longer changes tabs, so dragging a slider on CFG can't jump you to another tab."
+      ]
+    },
+    {
+      "version": "0.35",
+      "date": "2026-04-20",
+      "tag": "FEATURE",
+      "changes": [
+        "CW Essentials redesigned: My Callsign teaches each letter on its own, then builds up longer and longer runs until you send the whole callsign.",
+        "Two correct rounds in a row move you to the next callsign stage.",
+        "Targets show done, current and remaining letters in different colours, with reference bars for the current letter and live bars as you key.",
+        "Game cards on the OPS tab are more compact and no longer have icons."
+      ]
+    },
+    {
+      "version": "0.32",
+      "date": "2026-04-19",
+      "tag": "FIX",
+      "changes": [
+        "Fixed CW Essentials so that leaving the game returns to the main screen and the home screen decodes your keying again."
+      ]
+    },
+    {
+      "version": "0.31",
+      "date": "2026-04-19",
+      "tag": "FEATURE",
+      "changes": [
+        "New game CW Essentials, with three modes: My Callsign, Phrases Guided (hear it, then key it) and Phrases Practice.",
+        "Phrases include common prosigns, Q-codes and abbreviations such as CQ, QTH, 73 and RST, each shown with its meaning.",
+        "CW Essentials keeps a best score, shown on its OPS tab card and cleared by Reset Scores."
+      ]
+    },
+    {
+      "version": "0.29",
+      "date": "2026-04-19",
+      "tag": "FIX",
+      "changes": [
+        "Swapped the WPM buttons on the KEY tab so minus is on the left and plus is on the right."
+      ]
+    },
+    {
+      "version": "0.28",
+      "date": "2026-04-18",
+      "tag": "HARDWARE",
+      "changes": [
+        "New LEDs setting on the CFG tab to set how many NeoPixels are connected, from 1 to 60 (default 20).",
+        "Settings no longer back up to or restore from the SD card automatically at boot; backup and restore are now manual only.",
+        "SD settings backups now include LED count, screen flip and keyer timing, and restoring applies them right away.",
+        "WiFi credentials are now stored on the SD card.",
+        "Reset Scores now also clears your LEARN mode progress."
+      ]
+    },
+    {
+      "version": "0.25",
+      "date": "2026-04-16",
+      "tag": "FEATURE",
+      "changes": [
+        "New NeoPixel modes: Steady, Breathe, Starfield, Chase and Rainbow, plus separate brightness sliders for key flash and background effects.",
+        "LED mode Off now turns the LEDs fully off, including key and game flashes.",
+        "Maximum WPM raised from 40 to 60.",
+        "Hidden keyer timing menu (tap the WPM card 12 times) to adjust character gap, word gap and dit/dah threshold.",
+        "EXIT buttons added to Callsign Rush and Falling Letters, and a Reset Scores button with confirmation added to the OPS tab."
+      ]
+    },
+    {
+      "version": "0.14",
+      "date": "2026-04-04",
+      "tag": "FEATURE",
+      "changes": [
+        "New FLIP switch on the CFG tab rotates the screen and touch input 180 degrees.",
+        "Hold both paddles at power-on to turn screen flip back off.",
+        "Hidden easter egg: tap the CALL card 7 times."
+      ]
+    },
+    {
+      "version": "0.9",
+      "date": "2026-04-04",
+      "tag": "INITIAL",
+      "changes": [
+        "First release for the Waveshare ESP32-S3-Touch-LCD-2.8, with a dark touch UI and HOME, KEY, OPS, CFG and NET tabs.",
+        "Iambic A/B keyer with adjustable WPM, plus a straight-key mode that adapts to your speed, with live decoding on the home screen.",
+        "I2S sidetone with adjustable pitch and volume, and 20 NeoPixels with key flash, WPM meter and ambient modes.",
+        "Four practice games with difficulty levels and saved high scores: Falling Letters, Callsign Rush, Morse Trace (with a guided LEARN mode) and QSO Simulator.",
+        "Firmware updates from the SD card, and settings backup and restore."
+      ]
+    }
+  ]
+}
