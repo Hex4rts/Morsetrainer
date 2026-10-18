@@ -114,4 +114,6 @@ void Score_ClearAll(void) {
   Score_Clear("trace");
   Score_Clear("qso");
   Score_Clear("phrases");
+  Score_Clear("memory");
+  Score_Clear("fist");
 }

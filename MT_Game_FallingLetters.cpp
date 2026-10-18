@@ -48,10 +48,44 @@ static volatile char lastChar = 0;
 static void game_char(char c) { lastChar = c; UI_PushDecodedChar(c); }
 static void exit_cb(lv_event_t* e) { Game_FallingLetters_Stop(); }
 
+// ── Letter bag ──
+// Independent random picks left whole letters out of a game and clumped
+// others together. Instead deal from a shuffled A-Z bag: every letter comes
+// down once before any letter repeats, then the bag is reshuffled.
+static char    bag[26];
+static uint8_t bagPos = 26;   // 26 = empty, reshuffle on next draw
+
+static bool onScreen(char c) {
+  for (int i = 0; i < FL_MAX; i++)
+    if (letters[i].active && letters[i].ch == c) return true;
+  return false;
+}
+
+static char nextLetter(void) {
+  if (bagPos >= 26) {
+    char last = bag[25];                        // 0 before the first fill
+    for (int i = 0; i < 26; i++) bag[i] = 'A' + i;
+    for (int i = 25; i > 0; i--) {             // Fisher-Yates
+      int j = random(0, i + 1);
+      char t = bag[i]; bag[i] = bag[j]; bag[j] = t;
+    }
+    // Don't let the new bag open with the letter that closed the old one
+    if (bag[0] == last) { char t = bag[0]; bag[0] = bag[25]; bag[25] = t; }
+    bagPos = 0;
+  }
+  // Prefer a letter that isn't already falling: swap one in from later in the bag
+  if (onScreen(bag[bagPos])) {
+    for (int k = bagPos + 1; k < 26; k++) {
+      if (!onScreen(bag[k])) { char t = bag[bagPos]; bag[bagPos] = bag[k]; bag[k] = t; break; }
+    }
+  }
+  return bag[bagPos++];
+}
+
 static void spawn(void) {
   for (int i = 0; i < FL_MAX; i++) {
     if (letters[i].active) continue;
-    letters[i].ch = 'A' + random(0, 26);
+    letters[i].ch = nextLetter();
     letters[i].x  = random(10, FL_W - 40);
     letters[i].y  = -20;
     letters[i].fy = -20.0f;
@@ -269,6 +303,7 @@ void Game_FallingLetters_Start(void) {
 static void startFL(FLDiff d) {
   fldiff = d;
   score = 0; lives = FL_LIVES; level = 1; kills = 0; lastChar = 0;
+  bagPos = 26;  // fresh full bag every game
   active = true; overPanel = NULL;
 
   if (menuScr) { lv_obj_delete(menuScr); menuScr = NULL; }

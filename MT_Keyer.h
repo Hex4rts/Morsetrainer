@@ -75,6 +75,12 @@ uint16_t Keyer_SKHeldMs(void);                          // current hold duration
 bool     Keyer_SKPopElement(uint16_t* duration_ms, bool forGame);  // read next completed element
 void     Keyer_SKFlush(bool forGame);                   // discard pending elements
 
+// Key edge log for timing analysis (fist check). Every key-down / key-up the
+// keyer produces, in either mode, stamped with the keyer's 1 ms clock.
+// Single reader only.
+bool Keyer_PopEdge(bool* down, uint32_t* t_ms);
+void Keyer_FlushEdges(void);
+
 // Timing multipliers (set by Settings, used by ISR)
 extern float keyer_charGapMult;
 extern float keyer_wordGapMult;

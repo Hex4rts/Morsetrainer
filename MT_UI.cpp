@@ -2,6 +2,7 @@
 #include "MT_Keyer.h"
 #include "MT_NeoPixel.h"
 #include "MT_Settings.h"
+#include "MT_UI_Ref.h"
 
 // ── Theme colors (matching reference ui.h) ──
 #define C_BG       lv_color_hex(0x000000)
@@ -85,12 +86,13 @@ void UI_Init(void) {
   lv_obj_t* t1 = lv_tabview_add_tab(tabview, "HOME");
   lv_obj_t* t2 = lv_tabview_add_tab(tabview, "KEY");
   lv_obj_t* t3 = lv_tabview_add_tab(tabview, "OPS");
+  lv_obj_t* t6 = lv_tabview_add_tab(tabview, "ABC");
   lv_obj_t* t4 = lv_tabview_add_tab(tabview, "CFG");
   lv_obj_t* t5 = lv_tabview_add_tab(tabview, "NET");
 
   // Style each tab content dark
-  lv_obj_t* tabs[] = {t1, t2, t3, t4, t5};
-  for (int i = 0; i < 5; i++) {
+  lv_obj_t* tabs[] = {t1, t2, t3, t6, t4, t5};
+  for (int i = 0; i < 6; i++) {
     lv_obj_set_style_bg_color(tabs[i], C_BG, 0);
     lv_obj_set_style_bg_opa(tabs[i], LV_OPA_COVER, 0);
     lv_obj_set_style_text_color(tabs[i], C_WHITE, 0);
@@ -101,6 +103,7 @@ void UI_Init(void) {
   UI_Home_Create(t1);
   UI_Keyer_Create(t2);
   UI_Games_Create(t3);
+  UI_Ref_Create(t6);
   UI_Settings_Create(t4);
   UI_WiFi_Create(t5);
 

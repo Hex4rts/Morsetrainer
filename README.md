@@ -12,7 +12,9 @@ amazon: https://www.amazon.ca/dp/B0D8KKRV5V/ref=cm_sw_r_as_gl_api_gl_i_VZ4R3VETS
 - **Straight key** with fully adaptive timing (learns your speed)
 - **I2S sidetone** via PCM5101 DAC (adjustable tone & volume)
 - **20 NeoPixels** — green flash (straight key), blue/amber flash (iambic), plus ambient modes
-- **4 practice games** with difficulty levels and persistent high scores
+- **6 practice games** with difficulty levels and persistent high scores
+- **Fist Check** - live analysis of your keying timing with a score and tips
+- **Morse & Q-code reference** (ABC tab) - tap any entry to hear it
 - **LEARN mode** — guided letter-by-letter Morse trainer with drill/recall cycle
 - **OTA updates** from SD card — drop `firmware.bin` on SD and reboot
 - **Dark military theme** UI — black background, green/amber/red accents
@@ -64,7 +66,8 @@ Arduino/libraries/lv_conf.h    <- copy here
 |------|----------|
 | HOME | Decoded text, visual dit/dah bars, WPM/MODE/CALL cards |
 | KEY  | Keyer mode selector (Iambic A/B/Straight), WPM slider |
-| OPS  | 4 game cards with best scores - tap to play |
+| OPS  | Game cards with best scores - tap to play |
+| ABC  | Morse reference: A-Z / 0-9 / punctuation, plus Q-codes, prosigns & abbreviations with meanings - tap any entry to hear it |
 | CFG  | Callsign, volume, tone, backlight, LED mode, backup/restore, version |
 | NET  | WiFi settings (stub) |
 
@@ -88,7 +91,7 @@ Arduino/libraries/lv_conf.h    <- copy here
 
 ## Games (OPS tab)
 
-All 4 games save best scores to SD and display them on the OPS tab cards.
+All games save best scores to SD and display them on the OPS tab cards.
 
 ### Falling Letters (2 levels)
 - **Beginner:** Letter + morse hint underneath
@@ -110,6 +113,16 @@ All 4 games save best scores to SD and display them on the OPS tab cards.
 ### QSO Simulator (3x3 grid)
 - 3 difficulties (Beginner/Intermediate/Expert) x 3 complexity levels (SIMPLE/RST/FULL)
 - Random callsigns from realistic prefix pool
+
+### Fist Check (tool)
+Send anything (e.g. `PARIS PARIS` or `CQ CQ DE <call>`) and get a live read-out of your keying:
+- **Speed** (WPM from your own dit length)
+- **Dit steadiness** - spread of your dit lengths (aim under 10%)
+- **Dah : dit ratio** - ideal 3.0
+- **Element / letter / word gaps** in dit units - ideal 1 / 3 / 7. Gaps are grouped by clustering your own timing, so a cramped or over-spaced fist is reported correctly.
+- **Fist score** 0-100 and a tip for your weakest point. Best score (40+ elements) is saved.
+
+Straight key gets the full analysis. In iambic modes the keyer times the elements, so only letter and word spacing are checked.
 
 ## LEARN Mode (Morse Trace)
 
@@ -144,6 +157,15 @@ Random pool excludes the last picked letter to avoid repetition.
 ### Progress Persistence
 All drill counters, learned state, and next letter index saved to SD. Progress survives reboot.
 
+## Release Binaries
+
+`release/` holds the ready-built files for the current version:
+
+| File | Use |
+|------|-----|
+| `MorseTrainer.ino.merged.bin` | Full image for a blank board - web flasher, or `esptool write_flash 0x0` |
+| `firmware.bin` | App-only update - copy to SD card root, power on |
+
 ## OTA Update (SD Card)
 
 Requires the custom partition table (`partitions.csv`) with 2x3MB app slots. "Huge APP (3MB No OTA)" will NOT work.
@@ -175,10 +197,11 @@ MorseTrainer/
   MT_WiFi.h/.cpp              WiFi stubs
   MT_OTA.h/.cpp               SD card OTA update
 
-  MT_UI.h/.cpp                5-tab LVGL shell
+  MT_UI.h/.cpp                6-tab LVGL shell
   MT_UI_Home.h/.cpp           Home tab
   MT_UI_Keyer.h/.cpp          Keyer settings tab
   MT_UI_Games.h/.cpp          OPS tab (game cards + scores)
+  MT_UI_Ref.h/.cpp            ABC tab (Morse + Q-code reference)
   MT_UI_Settings.h/.cpp       CFG tab
   MT_UI_WiFi.h/.cpp           NET tab
 
@@ -186,6 +209,7 @@ MorseTrainer/
   MT_Game_CallsignRush.h/.cpp
   MT_Game_Trainer.h/.cpp      Morse Trace + LEARN mode
   MT_Game_QSO.h/.cpp          QSO Simulator
+  MT_Game_Fist.h/.cpp         Fist Check (keying timing analyser)
 
   (Waveshare driver files)    Display, Touch, I2C, SD, BAT, PWR, RTC, IMU
 ```
@@ -214,6 +238,7 @@ Core 1 (main loop)              Core 0 (DriverTask @ 33ms)
 /scores/callrush.txt    Callsign Rush high scores
 /scores/trace.txt       Morse Trace high scores
 /scores/qso.txt         QSO Simulator high scores
+/scores/fist.txt        Fist Check best scores
 ```
 
 ## Settings Persistence

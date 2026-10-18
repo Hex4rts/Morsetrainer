@@ -9,6 +9,7 @@
 #include "MT_Game_QSO.h"
 #include "MT_Game_Phrases.h"
 #include "MT_Game_MorseMemory.h"
+#include "MT_Game_Fist.h"
 
 extern const lv_font_t* ui_font_large;
 extern const lv_font_t* ui_font_normal;
@@ -19,6 +20,7 @@ static lv_obj_t* hsLbl3 = NULL;
 static lv_obj_t* hsLbl4 = NULL;
 static lv_obj_t* hsLbl5 = NULL;
 static lv_obj_t* hsLbl6 = NULL;
+static lv_obj_t* hsLbl7 = NULL;
 
 static void falling_cb(lv_event_t* e) { Game_FallingLetters_Start(); }
 static void callrush_cb(lv_event_t* e) { Game_CallsignRush_Start(); }
@@ -26,6 +28,7 @@ static void trainer_cb(lv_event_t* e) { Game_Trainer_Start(); }
 static void qso_cb(lv_event_t* e) { Game_QSO_Start(); }
 static void phrases_cb(lv_event_t* e) { Game_Phrases_Start(); }
 static void memory_cb(lv_event_t* e) { Game_MorseMemory_Start(); }
+static void fist_cb(lv_event_t* e) { Game_Fist_Start(); }
 
 // Helper: game card (no icon — title + desc + best score)
 static lv_obj_t* makeGameCard(lv_obj_t* parent, const char* name,
@@ -99,11 +102,19 @@ void UI_Games_Create(lv_obj_t* parent) {
                                "Recall the sequence", 160, 114, &hsLbl6);
   lv_obj_add_event_cb(c6, memory_cb, LV_EVENT_CLICKED, NULL);
 
+  // Row 4: slim full-width tool card
+  lv_obj_t* c7 = makeGameCard(parent, "Fist Check",
+                               "Analyse your keying timing", 4, 170, &hsLbl7);
+  lv_obj_set_size(c7, 306, 38);
+  lv_obj_align(hsLbl7, LV_ALIGN_TOP_RIGHT, 0, 0);
+  lv_obj_add_event_cb(c7, fist_cb, LV_EVENT_CLICKED, NULL);
+
   // Set initial scores
   score_board_t tr = Score_Load("trace");
   score_board_t qo = Score_Load("qso");
   score_board_t ph = Score_Load("phrases");
   score_board_t mm = Score_Load("memory");
+  score_board_t fc = Score_Load("fist");
   char buf[20];
   if (hsLbl1) {
     if (fl.count > 0) snprintf(buf, sizeof(buf), "Best: %lu", fl.entries[0].score);
@@ -134,6 +145,11 @@ void UI_Games_Create(lv_obj_t* parent) {
     if (mm.count > 0) snprintf(buf, sizeof(buf), "Best: %lu", mm.entries[0].score);
     else snprintf(buf, sizeof(buf), "Best: ---");
     lv_label_set_text(hsLbl6, buf);
+  }
+  if (hsLbl7) {
+    if (fc.count > 0) snprintf(buf, sizeof(buf), "Best: %lu", fc.entries[0].score);
+    else snprintf(buf, sizeof(buf), "Best: ---");
+    lv_label_set_text(hsLbl7, buf);
   }
 }
 
@@ -148,6 +164,7 @@ void UI_Games_Refresh(void) {
   score_board_t qo = Score_Load("qso");
   score_board_t ph = Score_Load("phrases");
   score_board_t mm = Score_Load("memory");
+  score_board_t fc = Score_Load("fist");
   char buf[20];
   if (hsLbl1) {
     if (fl.count > 0) snprintf(buf, sizeof(buf), "Best: %lu", fl.entries[0].score);
@@ -178,5 +195,10 @@ void UI_Games_Refresh(void) {
     if (mm.count > 0) snprintf(buf, sizeof(buf), "Best: %lu", mm.entries[0].score);
     else snprintf(buf, sizeof(buf), "Best: ---");
     lv_label_set_text(hsLbl6, buf);
+  }
+  if (hsLbl7) {
+    if (fc.count > 0) snprintf(buf, sizeof(buf), "Best: %lu", fc.entries[0].score);
+    else snprintf(buf, sizeof(buf), "Best: ---");
+    lv_label_set_text(hsLbl7, buf);
   }
 }

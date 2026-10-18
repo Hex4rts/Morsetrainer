@@ -128,6 +128,11 @@ static const phrase_t phraseDB[] = {
 };
 #define NUM_PHRASES (sizeof(phraseDB)/sizeof(phraseDB[0]))
 
+// Read-only access for the ABC tab reference page
+uint8_t     Phrases_Count(void)          { return NUM_PHRASES; }
+const char* Phrases_Code(uint8_t i)      { return i < NUM_PHRASES ? phraseDB[i].code : ""; }
+const char* Phrases_Meaning(uint8_t i)   { return i < NUM_PHRASES ? phraseDB[i].meaning : ""; }
+
 // ── Sizing ──
 #define MAX_TARGET 12
 #define MAX_BARS   16
@@ -203,8 +208,8 @@ static int     phraseSel   = -1;
 
 // Fisher-Yates shuffle: cycles through ALL phrases before any repeat.
 // After shufflePos reaches NUM_PHRASES, we reshuffle and start again.
-// This was the "only 7 rolling" fix — Arduino's random() is deterministic
-// without randomSeed(), so the same few indices came up each session.
+// This was the "only 7 rolling" fix — independent random picks kept landing
+// on the same few phrases; a shuffle guarantees full coverage.
 static uint8_t shuffleOrder[NUM_PHRASES];
 static uint8_t shufflePos = 0;
 
@@ -743,8 +748,9 @@ static void startGame(Mode m, int sel) {
   pauseCtr = 0; pauseState = PS_NONE;
   lastPlayedStage = -1;    // force audio demo for first stage
 
-  // Seed RNG and initialize shuffle (only used in shuffle mode but safe always)
-  randomSeed((uint32_t)millis() ^ (uint32_t)micros());
+  // Initialize shuffle (only used in shuffle mode but safe always).
+  // No randomSeed(): on ESP32 random() already uses the hardware RNG, and
+  // seeding would switch EVERY game over to the weaker software rand().
   reshufflePhrases();
 
   // Defer deletion of the current menu screen — startGame is usually called

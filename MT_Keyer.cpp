@@ -88,13 +88,29 @@ static bool readDah(void) {
   return dah_state;
 }
 
+// Key edge log for timing analysis (fist check). Every key-down / key-up is
+// stamped with the keyer's own 1 ms clock; bit 31 = down. Single writer (the
+// keyer tick), single reader (Keyer_PopEdge).
+#define EDGE_LOG_SIZE 64
+static volatile uint32_t keyer_ms = 0;
+static volatile uint32_t edge_log[EDGE_LOG_SIZE];
+static volatile uint8_t  edge_w = 0;
+static volatile uint8_t  edge_r = 0;
+
+static inline void logEdge(bool down) {
+  edge_log[edge_w % EDGE_LOG_SIZE] = (keyer_ms & 0x7FFFFFFF) | (down ? 0x80000000u : 0);
+  edge_w = edge_w + 1;
+}
+
 static void keyDown(bool isDah) {
+  logEdge(true);
   sending = true;
   Sidetone_On();
   if (element_cb) element_cb(true, isDah);
 }
 
 static void keyUp(void) {
+  if (sending) logEdge(false);
   sending = false;
   Sidetone_Off();
   if (element_cb) element_cb(false, false);
@@ -417,6 +433,7 @@ static void keyer_tick_straight(void) {
 //  Timer callback (1 ms)
 // ============================================================================
 static void IRAM_ATTR keyer_timer_cb(void* arg) {
+  keyer_ms = keyer_ms + 1;
   if (mode == KEYER_STRAIGHT) {
     keyer_tick_straight();
   } else {
@@ -531,6 +548,18 @@ void Keyer_SKFlush(bool forGame) {
   if (forGame) sk_logR_game = sk_logW;
   else sk_logR_global = sk_logW;
 }  // adaptive straight key dit length
+
+bool Keyer_PopEdge(bool* down, uint32_t* t_ms) {
+  if (edge_r == edge_w) return false;
+  if ((uint8_t)(edge_w - edge_r) > EDGE_LOG_SIZE) edge_r = edge_w - EDGE_LOG_SIZE;  // overrun: keep newest
+  uint32_t e = edge_log[edge_r % EDGE_LOG_SIZE];
+  edge_r = edge_r + 1;
+  *down = (e & 0x80000000u) != 0;
+  *t_ms = e & 0x7FFFFFFF;
+  return true;
+}
+
+void Keyer_FlushEdges(void) { edge_r = edge_w; }
 
 const char* Keyer_GetPattern(void) {
   // If currently building a character, show live pattern
